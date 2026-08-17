@@ -14,7 +14,7 @@ FILE_CATEGORIES = {
     ".mp4" : "Videos"
 }
 
-def organize_files(folder: Path) -> int:
+def organize_files(folder: Path) -> tuple[int, int]:
     if  not folder.exists():
         print("Folder does not exist")
         return 0
@@ -22,16 +22,22 @@ def organize_files(folder: Path) -> int:
         print("The path is not a directory")
         return 0
     moved_count = 0
+    failed_count = 0
     for item in folder.iterdir():
         if item.is_file():
             suffix = item.suffix
             category = FILE_CATEGORIES.get(suffix, "Others")
             destination = folder / category
             destination.mkdir(exist_ok=True)
-            shutil.move(item, destination)
-            print(item.name, "->", category)
-            moved_count += 1
-    return moved_count
+            try:
+                shutil.move(item, destination)
+                print(item.name, "->", category)
+                moved_count += 1
+            except Exception as e:
+                print(f"Could not move {item.name}: {e}")
+                failed_count += 1
+    return moved_count, failed_count
 
-count = organize_files(Path("test_files_2"))
-print("Total Files Moved:", count)
+moved, failed = organize_files(Path("test_files_2"))
+print(f"moved: {moved}")
+print(f"failed: {failed}")
