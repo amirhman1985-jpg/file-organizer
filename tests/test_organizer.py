@@ -1,4 +1,4 @@
-from organizer import get_category, organize_files
+from file_organizer.organizer import get_category, organize_files
 def test_jpg_category():
     assert get_category(".jpg") == "Images"
 
