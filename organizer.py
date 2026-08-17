@@ -1,6 +1,12 @@
 from pathlib import Path
 import shutil
+import logging
 
+logging.basicConfig(
+    filename="File_organizer.log",
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s"
+)
 FILE_CATEGORIES = {
     ".jpg" : "Images",
     ".png" : "Images",
@@ -13,31 +19,33 @@ FILE_CATEGORIES = {
     ".zip" : "Archives",
     ".mp4" : "Videos"
 }
-
+def get_category(suffix: str) -> str:
+    return FILE_CATEGORIES.get(suffix, "Others" )
 def organize_files(folder: Path) -> tuple[int, int]:
+    logging.info("File Organizer started")
     if  not folder.exists():
-        print("Folder does not exist")
-        return 0
+        logging.error("Folder does not exist")
+        return 0, 0
     if not folder.is_dir():
-        print("The path is not a directory")
-        return 0
+        logging.error("The path is not a directory")
+        return 0, 0
     moved_count = 0
     failed_count = 0
     for item in folder.iterdir():
         if item.is_file():
-            suffix = item.suffix
-            category = FILE_CATEGORIES.get(suffix, "Others")
+            category = get_category(item.suffix)
             destination = folder / category
             destination.mkdir(exist_ok=True)
             try:
                 shutil.move(item, destination)
-                print(item.name, "->", category)
+                logging.info(f"Moved {item.name} -> {category}")
                 moved_count += 1
             except Exception as e:
-                print(f"Could not move {item.name}: {e}")
+                logging.error(f"Could not move {item.name}: {e}")
                 failed_count += 1
+    logging.info(f"Finished. Moved {moved_count}, Failed {failed_count}")
     return moved_count, failed_count
-
-moved, failed = organize_files(Path("test_files_2"))
-print(f"moved: {moved}")
-print(f"failed: {failed}")
+if __name__ == "__main__":
+    moved, failed = organize_files(Path("test_files_2"))
+    print(f"Moved: {moved}")
+    print(f"Failed: {failed}")
