@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "file-organizer"
+version = "0.1.0"
+description = "A Python application for organizing files automatically"
+readme = "README.md"
+requires-python = ">=3.10"
+
+[project.scripts]
+file-organizer = "file_organizer.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

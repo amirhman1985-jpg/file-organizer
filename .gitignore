@@ -7,3 +7,5 @@ venv/
 test_files/
 test_files_2/
 File_organizer.log
+test_cli/
+test_cli_real/

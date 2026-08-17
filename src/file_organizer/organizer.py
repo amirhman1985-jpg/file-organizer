@@ -21,7 +21,7 @@ FILE_CATEGORIES = {
 }
 def get_category(suffix: str) -> str:
     return FILE_CATEGORIES.get(suffix, "Others" )
-def organize_files(folder: Path) -> tuple[int, int]:
+def organize_files(folder: Path, dry_run: bool = False) -> tuple[int, int]:
     logging.info("File Organizer started")
     if  not folder.exists():
         logging.error("Folder does not exist")
@@ -34,6 +34,11 @@ def organize_files(folder: Path) -> tuple[int, int]:
     for item in folder.iterdir():
         if item.is_file():
             category = get_category(item.suffix)
+
+            if dry_run:
+                print(f"Would move {item.name} -> {category}")
+                logging.info(f"DRY RUN | Would move {item.name} -> {category}")
+                continue
             destination = folder / category
             destination.mkdir(exist_ok=True)
             try:
@@ -43,9 +48,7 @@ def organize_files(folder: Path) -> tuple[int, int]:
             except Exception as e:
                 logging.error(f"Could not move {item.name}: {e}")
                 failed_count += 1
+    if dry_run:
+        print("Dry run completed. No files were moved.")
     logging.info(f"Finished. Moved {moved_count}, Failed {failed_count}")
     return moved_count, failed_count
-if __name__ == "__main__":
-    moved, failed = organize_files(Path("test_files_2"))
-    print(f"Moved: {moved}")
-    print(f"Failed: {failed}")
