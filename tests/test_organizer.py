@@ -1,4 +1,4 @@
-from file_organizer.organizer import get_category, organize_files
+from file_organizer.organizer import get_category, organize_files, get_unique_destination
 def test_jpg_category():
     assert get_category(".jpg") == "Images"
 
@@ -79,3 +79,44 @@ def test_recursive_organize(tmp_path):
     assert (tmp_path / "Vectors" / "design.ai").exists()
     assert (tmp_path / "Documents" / "report.pdf").exists()
     assert (tmp_path / "Archives" / "archive.zip").exists()
+
+def test_unique_destination_when_file_exists(tmp_path):
+    destination = tmp_path / "Images"
+    destination.mkdir()
+
+    existing = destination / "photo.jpg"
+    existing.touch()
+
+    result = get_unique_destination(destination, "photo.jpg")
+
+    assert result == destination / "photo_1.jpg"
+
+
+def test_unique_destination_when_multiple_files_exist(tmp_path):
+    destination = tmp_path / "Images"
+    destination.mkdir()
+
+    (destination / "photo.jpg").touch()
+    (destination / "photo_1.jpg").touch()
+    (destination / "photo_2.jpg").touch()
+
+    result = get_unique_destination(destination, "photo.jpg")
+
+    assert result == destination / "photo_3.jpg"
+
+def test_organize_duplicate_file(tmp_path):
+    image_dir = tmp_path / "Images"
+    image_dir.mkdir()
+
+    existing = image_dir / "photo.jpg"
+    existing.touch()
+
+    new_file = tmp_path / "photo.jpg"
+    new_file.touch()
+
+    moved, failed = organize_files(tmp_path)
+
+    assert moved == 1
+    assert failed == 0
+    assert (image_dir / "photo.jpg").exists()
+    assert (image_dir / "photo_1.jpg").exists()
