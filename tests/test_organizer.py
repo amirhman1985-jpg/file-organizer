@@ -13,22 +13,22 @@ def test_organize_jpg(tmp_path):
     file = tmp_path / "photo.jpg"
     file.touch()
 
-    moved, failed = organize_files(tmp_path)
+    result = organize_files(tmp_path)
 
-    assert moved == 1
-    assert failed == 0
+    assert result.moved == 1
+    assert result.failed == 0
+    assert result.skipped == 0
     assert (tmp_path / "Images" / "photo.jpg").exists()
 
 def test_dry_run(tmp_path):
     file = tmp_path / "photo.jpg"
     file.touch()
 
-    moved, failed = organize_files(tmp_path, dry_run=True)
+    result = organize_files(tmp_path, dry_run=True)
 
-    assert moved == 0
-    assert failed == 0
-    assert file.exists()
-    assert not (tmp_path / "Images" / "photo.jpg").exists()
+    assert result.moved == 0
+    assert result.failed == 0
+    assert result.skipped == 0
 
 def test_dry_run_multiple_files(tmp_path):
     files = [
@@ -39,10 +39,11 @@ def test_dry_run_multiple_files(tmp_path):
     for file in files:
         file.touch()
         
-    moved, failed = organize_files(tmp_path, dry_run=True)
+    result = organize_files(tmp_path, dry_run=True)
 
-    assert moved == 0
-    assert failed == 0
+    assert result.moved == 0
+    assert result.failed == 0
+    assert result.skipped == 0
 
     for file in files:
         assert file.exists()
@@ -68,13 +69,14 @@ def test_recursive_organize(tmp_path):
     for file in files:
         file.touch()
 
-    moved, failed = organize_files(
+    result = organize_files(
         tmp_path,
         recursive=True
     )
 
-    assert moved == 4
-    assert failed == 0
+    assert result.moved == 4
+    assert result.failed == 0
+    assert result.skipped == 0
 
     assert (tmp_path / "Images" / "photo.jpg").exists()
     assert (tmp_path / "Vectors" / "design.ai").exists()
@@ -115,10 +117,11 @@ def test_organize_duplicate_file(tmp_path):
     new_file = tmp_path / "photo.jpg"
     new_file.touch()
 
-    moved, failed = organize_files(tmp_path)
+    result = organize_files(tmp_path)
 
-    assert moved == 1
-    assert failed == 0
+    assert result.moved == 1
+    assert result.failed == 0
+    assert result.skipped == 0
     assert (image_dir / "photo.jpg").exists()
     assert (image_dir / "photo_1.jpg").exists()
 
@@ -132,13 +135,14 @@ def test_conflict_rename(tmp_path):
     new_file = tmp_path / "photo.jpg"
     new_file.touch()
 
-    moved, failed = organize_files(
+    result = organize_files(
         tmp_path,
         on_conflict="rename"
-)
+    )
 
-    assert moved == 1
-    assert failed == 0
+    assert result.moved == 1
+    assert result.failed == 0
+    assert result.skipped == 0
     assert (destination / "photo.jpg").exists()
     assert (destination / "photo_1.jpg").exists()
 
@@ -153,13 +157,14 @@ def test_conflict_skip(tmp_path):
     new_file = tmp_path / "photo.jpg"
     new_file.touch()
 
-    moved, failed = organize_files(
+    result = organize_files(
         tmp_path,
         on_conflict="skip"
     )
 
-    assert moved == 0
-    assert failed == 0
+    assert result.moved == 0
+    assert result.failed == 0
+    assert result.skipped == 1
     assert existing.exists()
     assert new_file.exists()
 

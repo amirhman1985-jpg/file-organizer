@@ -1,4 +1,5 @@
 from pathlib import Path
+from dataclasses import dataclass
 import shutil
 import logging
 
@@ -7,6 +8,13 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(message)s"
 )
+
+@dataclass
+class OrganizeResult:
+    moved: int = 0
+    skipped: int = 0
+    failed: int = 0
+
 FILE_CATEGORIES = {
     ".jpg" : "Images",
     ".png" : "Images",
@@ -61,23 +69,24 @@ def resolve_destination(
 
     return None
 
-def organize_files(folder: Path,
-                   dry_run: bool = False,
-                   recursive: bool = False,
-                   on_conflict: str = "rename"
-                ) -> tuple[int, int]:
+def organize_files(
+    folder: Path,
+    dry_run: bool = False,
+    recursive: bool = False,
+    on_conflict: str = "rename",
+) -> OrganizeResult:
+
     logging.info("File Organizer started")
 
-    if  not folder.exists():
+    if not folder.exists():
         logging.error("Folder does not exist")
-        return 0, 0
-    
+        return OrganizeResult()
+
     if not folder.is_dir():
         logging.error("The path is not a directory")
-        return 0, 0
-    
-    moved_count = 0
-    failed_count = 0
+        return OrganizeResult()
+
+    result = OrganizeResult()
 
     destination_dirs = {
         folder / category
@@ -93,38 +102,52 @@ def organize_files(folder: Path,
         if not item.is_file():
             continue
 
-        if any(destination_dir in item.parents for destination_dir in destination_dirs):            
+        if any(
+            destination_dir in item.parents
+            for destination_dir in destination_dirs
+        ):
             continue
-        
+
         category = get_category(item.suffix)
 
         if dry_run:
             print(f"Would move {item} -> {category}")
-            logging.info(f"DRY RUN | Would move {item} -> {category}")
+            logging.info(
+                f"DRY RUN | Would move {item} -> {category}"
+            )
             continue
 
         destination = folder / category
         destination.mkdir(exist_ok=True)
 
         try:
-            target= resolve_destination(
+            target = resolve_destination(
                 destination,
                 item.name,
-                on_conflict
+                on_conflict,
             )
+
             if target is None:
                 logging.info(f"Skipped {item}")
+                result.skipped += 1
                 continue
 
             shutil.move(item, target)
+
             logging.info(f"Moved {item} -> {target}")
-            moved_count += 1
+            result.moved += 1
+
         except Exception as e:
             logging.error(f"Could not move {item}: {e}")
-            failed_count += 1
+            result.failed += 1
+
     if dry_run:
         print("Dry run completed. No files were moved.")
 
-    logging.info(f"Finished. Moved {moved_count}, Failed {failed_count}")
+    logging.info(
+        f"Finished. Moved {result.moved}, "
+        f"Skipped {result.skipped}, "
+        f"Failed {result.failed}"
+    )
 
-    return moved_count, failed_count
+    return result
