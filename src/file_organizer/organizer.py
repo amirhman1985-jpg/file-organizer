@@ -21,34 +21,60 @@ FILE_CATEGORIES = {
 }
 def get_category(suffix: str) -> str:
     return FILE_CATEGORIES.get(suffix, "Others" )
-def organize_files(folder: Path, dry_run: bool = False) -> tuple[int, int]:
+def organize_files(folder: Path,
+                   dry_run: bool = False,
+                   recursive: bool = False
+                ) -> tuple[int, int]:
     logging.info("File Organizer started")
+
     if  not folder.exists():
         logging.error("Folder does not exist")
         return 0, 0
+    
     if not folder.is_dir():
         logging.error("The path is not a directory")
         return 0, 0
+    
     moved_count = 0
     failed_count = 0
-    for item in folder.iterdir():
-        if item.is_file():
-            category = get_category(item.suffix)
 
-            if dry_run:
-                print(f"Would move {item.name} -> {category}")
-                logging.info(f"DRY RUN | Would move {item.name} -> {category}")
-                continue
-            destination = folder / category
-            destination.mkdir(exist_ok=True)
-            try:
-                shutil.move(item, destination)
-                logging.info(f"Moved {item.name} -> {category}")
-                moved_count += 1
-            except Exception as e:
-                logging.error(f"Could not move {item.name}: {e}")
-                failed_count += 1
+    destination_dirs = {
+        folder / category
+        for category in set(FILE_CATEGORIES.values()) | {"Others"}
+    }
+
+    if recursive:
+        items = list(folder.rglob("*"))
+    else:
+        items = list(folder.iterdir())
+
+    for item in items:
+        if not item.is_file():
+            continue
+
+        if any(destination_dirs in item.parents for destination_dir in destination_dirs):
+            continue
+        
+        category = get_category(item.suffix)
+
+        if dry_run:
+            print(f"Would move {item} -> {category}")
+            logging.info(f"DRY RUN | Would move {item} -> {category}")
+            continue
+        
+        destination = folder / category
+        destination.mkdir(exist_ok=True)
+
+        try:
+            shutil.move(item, destination)
+            logging.info(f"Moved {item} -> {category}")
+            moved_count += 1
+        except Exception as e:
+            logging.error(f"Could not move {item}: {e}")
+            failed_count += 1
     if dry_run:
         print("Dry run completed. No files were moved.")
+
     logging.info(f"Finished. Moved {moved_count}, Failed {failed_count}")
+
     return moved_count, failed_count

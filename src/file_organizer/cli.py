@@ -14,11 +14,17 @@ def main():
         action="store_true",
         help="Preview changes without moving files"
     )
+    parser.add_argument(
+        "--recursive",
+        action="store_true",
+        help="Include files inside subdirectories"
+    )
     args = parser.parse_args()
     folder = Path(args.folder)
     moved, failed = organize_files(
         folder,
-        dry_run=args.dry_run
+        dry_run=args.dry_run,
+        recursive=args.recursive
         )
     print(f"Moved : {moved}")
     print(f"Failed : {failed}")

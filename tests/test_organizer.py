@@ -49,3 +49,33 @@ def test_dry_run_multiple_files(tmp_path):
     assert not (tmp_path / "Images" / "photo.jpg").exists()
     assert not (tmp_path / "Documents" / "book.pdf").exists()
     assert not (tmp_path / "Vectors" / "design.ai").exists()
+
+def test_recursive_organize(tmp_path):
+    projects = tmp_path / "Projects"
+    backup = tmp_path / "Backup"
+
+    projects.mkdir()
+    backup.mkdir()
+
+    files = [
+        tmp_path / "photo.jpg",
+        projects / "design.ai",
+        projects / "report.pdf",
+        backup / "archive.zip",
+    ]
+
+    for file in files:
+        file.touch()
+
+    moved, failed = organize_files(
+        tmp_path,
+        recursive=True
+    )
+
+    assert moved == 4
+    assert failed == 0
+
+    assert (tmp_path / "Images" / "photo.jpg").exists()
+    assert (tmp_path / "Vectors" / "design.ai").exists()
+    assert (tmp_path / "Documents" / "report.pdf").exists()
+    assert (tmp_path / "Archives" / "archive.zip").exists()
