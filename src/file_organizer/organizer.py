@@ -41,9 +41,30 @@ def get_unique_destination(destination: Path, filename: str) -> Path:
 
         counter += 1
 
+def resolve_destination(
+    destination: Path,
+    filename: str,
+    on_conflict: str
+) -> Path | None:
+    if on_conflict not in {"rename", "skip"}:
+        raise ValueError(
+            f"Unsupported conflict policy: {on_conflict}"
+        )
+
+    target = destination / filename
+
+    if not target.exists():
+        return target
+
+    if on_conflict == "rename":
+        return get_unique_destination(destination, filename)
+
+    return None
+
 def organize_files(folder: Path,
                    dry_run: bool = False,
-                   recursive: bool = False
+                   recursive: bool = False,
+                   on_conflict: str = "rename"
                 ) -> tuple[int, int]:
     logging.info("File Organizer started")
 
@@ -72,7 +93,7 @@ def organize_files(folder: Path,
         if not item.is_file():
             continue
 
-        if any(destination_dirs in item.parents for destination_dir in destination_dirs):
+        if any(destination_dir in item.parents for destination_dir in destination_dirs):            
             continue
         
         category = get_category(item.suffix)
@@ -86,9 +107,17 @@ def organize_files(folder: Path,
         destination.mkdir(exist_ok=True)
 
         try:
-            target= get_unique_destination(destination, item.name)
+            target= resolve_destination(
+                destination,
+                item.name,
+                on_conflict
+            )
+            if target is None:
+                logging.info(f"Skipped {item}")
+                continue
+
             shutil.move(item, target)
-            logging.info(f"Moved {item} -> {category}")
+            logging.info(f"Moved {item} -> {target}")
             moved_count += 1
         except Exception as e:
             logging.error(f"Could not move {item}: {e}")

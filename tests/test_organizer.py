@@ -1,4 +1,5 @@
-from file_organizer.organizer import get_category, organize_files, get_unique_destination
+from file_organizer.organizer import get_category, organize_files, get_unique_destination, resolve_destination
+import pytest
 def test_jpg_category():
     assert get_category(".jpg") == "Images"
 
@@ -120,3 +121,55 @@ def test_organize_duplicate_file(tmp_path):
     assert failed == 0
     assert (image_dir / "photo.jpg").exists()
     assert (image_dir / "photo_1.jpg").exists()
+
+def test_conflict_rename(tmp_path):
+    destination = tmp_path / "Images"
+    destination.mkdir()
+
+    existing = destination / "photo.jpg"
+    existing.touch()
+
+    new_file = tmp_path / "photo.jpg"
+    new_file.touch()
+
+    moved, failed = organize_files(
+        tmp_path,
+        on_conflict="rename"
+)
+
+    assert moved == 1
+    assert failed == 0
+    assert (destination / "photo.jpg").exists()
+    assert (destination / "photo_1.jpg").exists()
+
+
+def test_conflict_skip(tmp_path):
+    destination = tmp_path / "Images"
+    destination.mkdir()
+
+    existing = destination / "photo.jpg"
+    existing.touch()
+
+    new_file = tmp_path / "photo.jpg"
+    new_file.touch()
+
+    moved, failed = organize_files(
+        tmp_path,
+        on_conflict="skip"
+    )
+
+    assert moved == 0
+    assert failed == 0
+    assert existing.exists()
+    assert new_file.exists()
+
+def test_invalid_conflict_policy(tmp_path):
+    destination = tmp_path / "Images"
+    destination.mkdir()
+
+    with pytest.raises(ValueError):
+        resolve_destination(
+            destination,
+            "photo.jpg",
+            "invalid"
+        )
