@@ -1,0 +1,34 @@
+{
+  "categories": {
+    "Images": [
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".webp"
+    ],
+    "Documents": [
+      ".pdf",
+      ".docx",
+      ".txt",
+      ".xlsx"
+    ],
+    "Vectors": [
+      ".ai",
+      ".cdr",
+      ".svg"
+    ],
+    "Archives": [
+      ".zip",
+      ".rar"
+    ],
+    "Videos": [
+      ".mp4",
+      ".mkv"
+    ],
+    "Design": [
+      ".psd",
+      ".fig"
+    ],
+    "Others": []
+  }
+}

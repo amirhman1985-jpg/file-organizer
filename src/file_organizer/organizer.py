@@ -15,20 +15,11 @@ class OrganizeResult:
     skipped: int = 0
     failed: int = 0
 
-FILE_CATEGORIES = {
-    ".jpg" : "Images",
-    ".png" : "Images",
-    ".webp" : "Images",
-    ".pdf" : "Documents",
-    ".docx" : "Documents",
-    ".ai" : "Vectors",
-    ".cdr" : "Vectors",
-    ".svg" : "Vectors",
-    ".zip" : "Archives",
-    ".mp4" : "Videos"
-}
-def get_category(suffix: str) -> str:
-    return FILE_CATEGORIES.get(suffix, "Others" )
+def get_category(
+        suffix: str,
+        categoreis:dict[str, str],
+) -> str:
+    return categoreis.get(suffix.lower(), "Others" )
 
 def get_unique_destination(destination: Path, filename: str) -> Path:
     target = destination / filename
@@ -71,10 +62,17 @@ def resolve_destination(
 
 def organize_files(
     folder: Path,
+    categories: dict[str, str],
     dry_run: bool = False,
     recursive: bool = False,
     on_conflict: str = "rename",
+    exclude_paths: set[Path] | None = None,
 ) -> OrganizeResult:
+
+    excluded = {
+    path.resolve()
+    for path in (exclude_paths or set())
+}
 
     logging.info("File Organizer started")
 
@@ -90,7 +88,7 @@ def organize_files(
 
     destination_dirs = {
         folder / category
-        for category in set(FILE_CATEGORIES.values()) | {"Others"}
+        for category in set(categories.values()) | {"Others"}
     }
 
     if recursive:
@@ -101,6 +99,9 @@ def organize_files(
     for item in items:
         if not item.is_file():
             continue
+        if item.resolve() in excluded:
+            logging.info(f"Excluded {item}")
+            continue
 
         if any(
             destination_dir in item.parents
@@ -108,7 +109,7 @@ def organize_files(
         ):
             continue
 
-        category = get_category(item.suffix)
+        category = get_category(item.suffix, categories)
 
         if dry_run:
             print(f"Would move {item} -> {category}")
