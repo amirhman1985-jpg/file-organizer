@@ -1,5 +1,13 @@
-from file_organizer.organizer import get_category, organize_files, get_unique_destination, resolve_destination
 import pytest
+
+from file_organizer.organizer import (
+    get_category,
+    get_unique_destination,
+    organize_files,
+    resolve_destination,
+)
+
+
 TEST_CATEGORIES = {
     ".jpg": "Images",
     ".png": "Images",
@@ -12,46 +20,106 @@ TEST_CATEGORIES = {
     ".zip": "Archives",
     ".mp4": "Videos",
 }
+
+
 def test_jpg_category():
-    assert get_category(".jpg", TEST_CATEGORIES) == "Images"
+    assert (
+        get_category(
+            ".jpg",
+            TEST_CATEGORIES,
+        )
+        == "Images"
+    )
+
 
 def test_ai_category():
-    assert get_category(".ai", TEST_CATEGORIES) == "Vectors"
+    assert (
+        get_category(
+            ".ai",
+            TEST_CATEGORIES,
+        )
+        == "Vectors"
+    )
+
 
 def test_unknown_category():
-    assert get_category(".xyz", TEST_CATEGORIES) == "Others"
+    assert (
+        get_category(
+            ".xyz",
+            TEST_CATEGORIES,
+        )
+        == "Others"
+    )
+
+
+def test_uppercase_extension():
+    assert (
+        get_category(
+            ".JPG",
+            TEST_CATEGORIES,
+        )
+        == "Images"
+    )
+
 
 def test_organize_jpg(tmp_path):
-    file = tmp_path / "photo.jpg"
+    file = (
+        tmp_path / "photo.jpg"
+    )
+
     file.touch()
 
-    result = organize_files(tmp_path, TEST_CATEGORIES)
+    result = organize_files(
+        tmp_path,
+        TEST_CATEGORIES,
+    )
 
     assert result.moved == 1
     assert result.failed == 0
     assert result.skipped == 0
-    assert (tmp_path / "Images" / "photo.jpg").exists()
+
+    assert (
+        tmp_path
+        / "Images"
+        / "photo.jpg"
+    ).exists()
+
 
 def test_dry_run(tmp_path):
-    file = tmp_path / "photo.jpg"
+    file = (
+        tmp_path / "photo.jpg"
+    )
+
     file.touch()
 
-    result = organize_files(tmp_path, TEST_CATEGORIES, dry_run=True)
+    result = organize_files(
+        tmp_path,
+        TEST_CATEGORIES,
+        dry_run=True,
+    )
 
     assert result.moved == 0
     assert result.failed == 0
     assert result.skipped == 0
 
+    assert file.exists()
+
+
 def test_dry_run_multiple_files(tmp_path):
     files = [
         tmp_path / "photo.jpg",
-        tmp_path / "book.pdf",    
-        tmp_path / "design.ai"
+        tmp_path / "book.pdf",
+        tmp_path / "design.ai",
     ]
+
     for file in files:
         file.touch()
-        
-    result = organize_files(tmp_path, TEST_CATEGORIES, dry_run=True)
+
+    result = organize_files(
+        tmp_path,
+        TEST_CATEGORIES,
+        dry_run=True,
+    )
 
     assert result.moved == 0
     assert result.failed == 0
@@ -60,13 +128,33 @@ def test_dry_run_multiple_files(tmp_path):
     for file in files:
         assert file.exists()
 
-    assert not (tmp_path / "Images" / "photo.jpg").exists()
-    assert not (tmp_path / "Documents" / "book.pdf").exists()
-    assert not (tmp_path / "Vectors" / "design.ai").exists()
+    assert not (
+        tmp_path
+        / "Images"
+        / "photo.jpg"
+    ).exists()
+
+    assert not (
+        tmp_path
+        / "Documents"
+        / "book.pdf"
+    ).exists()
+
+    assert not (
+        tmp_path
+        / "Vectors"
+        / "design.ai"
+    ).exists()
+
 
 def test_recursive_organize(tmp_path):
-    projects = tmp_path / "Projects"
-    backup = tmp_path / "Backup"
+    projects = (
+        tmp_path / "Projects"
+    )
+
+    backup = (
+        tmp_path / "Backup"
+    )
 
     projects.mkdir()
     backup.mkdir()
@@ -81,118 +169,247 @@ def test_recursive_organize(tmp_path):
     for file in files:
         file.touch()
 
-    result = organize_files(tmp_path, TEST_CATEGORIES,recursive=True)
+    result = organize_files(
+        tmp_path,
+        TEST_CATEGORIES,
+        recursive=True,
+    )
 
     assert result.moved == 4
     assert result.failed == 0
     assert result.skipped == 0
 
-    assert (tmp_path / "Images" / "photo.jpg").exists()
-    assert (tmp_path / "Vectors" / "design.ai").exists()
-    assert (tmp_path / "Documents" / "report.pdf").exists()
-    assert (tmp_path / "Archives" / "archive.zip").exists()
+    assert (
+        tmp_path
+        / "Images"
+        / "photo.jpg"
+    ).exists()
 
-def test_unique_destination_when_file_exists(tmp_path):
-    destination = tmp_path / "Images"
+    assert (
+        tmp_path
+        / "Vectors"
+        / "design.ai"
+    ).exists()
+
+    assert (
+        tmp_path
+        / "Documents"
+        / "report.pdf"
+    ).exists()
+
+    assert (
+        tmp_path
+        / "Archives"
+        / "archive.zip"
+    ).exists()
+
+
+def test_unique_destination_when_file_exists(
+    tmp_path,
+):
+    destination = (
+        tmp_path / "Images"
+    )
+
     destination.mkdir()
 
-    existing = destination / "photo.jpg"
+    existing = (
+        destination / "photo.jpg"
+    )
+
     existing.touch()
 
-    result = get_unique_destination(destination, "photo.jpg")
+    result = get_unique_destination(
+        destination,
+        "photo.jpg",
+    )
 
-    assert result == destination / "photo_1.jpg"
+    assert (
+        result
+        == destination / "photo_1.jpg"
+    )
 
 
-def test_unique_destination_when_multiple_files_exist(tmp_path):
-    destination = tmp_path / "Images"
+def test_unique_destination_when_multiple_files_exist(
+    tmp_path,
+):
+    destination = (
+        tmp_path / "Images"
+    )
+
     destination.mkdir()
 
-    (destination / "photo.jpg").touch()
-    (destination / "photo_1.jpg").touch()
-    (destination / "photo_2.jpg").touch()
+    (
+        destination / "photo.jpg"
+    ).touch()
 
-    result = get_unique_destination(destination, "photo.jpg")
+    (
+        destination / "photo_1.jpg"
+    ).touch()
 
-    assert result == destination / "photo_3.jpg"
+    (
+        destination / "photo_2.jpg"
+    ).touch()
 
-def test_organize_duplicate_file(tmp_path):
-    image_dir = tmp_path / "Images"
+    result = get_unique_destination(
+        destination,
+        "photo.jpg",
+    )
+
+    assert (
+        result
+        == destination / "photo_3.jpg"
+    )
+
+
+def test_organize_duplicate_file(
+    tmp_path,
+):
+    image_dir = (
+        tmp_path / "Images"
+    )
+
     image_dir.mkdir()
 
-    existing = image_dir / "photo.jpg"
+    existing = (
+        image_dir / "photo.jpg"
+    )
+
     existing.touch()
 
-    new_file = tmp_path / "photo.jpg"
+    new_file = (
+        tmp_path / "photo.jpg"
+    )
+
     new_file.touch()
 
-    result = organize_files(tmp_path, TEST_CATEGORIES)
+    result = organize_files(
+        tmp_path,
+        TEST_CATEGORIES,
+    )
 
     assert result.moved == 1
     assert result.failed == 0
     assert result.skipped == 0
-    assert (image_dir / "photo.jpg").exists()
-    assert (image_dir / "photo_1.jpg").exists()
+
+    assert (
+        image_dir / "photo.jpg"
+    ).exists()
+
+    assert (
+        image_dir / "photo_1.jpg"
+    ).exists()
+
 
 def test_conflict_rename(tmp_path):
-    destination = tmp_path / "Images"
+    destination = (
+        tmp_path / "Images"
+    )
+
     destination.mkdir()
 
-    existing = destination / "photo.jpg"
+    existing = (
+        destination / "photo.jpg"
+    )
+
     existing.touch()
 
-    new_file = tmp_path / "photo.jpg"
+    new_file = (
+        tmp_path / "photo.jpg"
+    )
+
     new_file.touch()
 
-    result = organize_files(tmp_path, TEST_CATEGORIES, on_conflict="rename")
+    result = organize_files(
+        tmp_path,
+        TEST_CATEGORIES,
+        on_conflict="rename",
+    )
 
     assert result.moved == 1
     assert result.failed == 0
     assert result.skipped == 0
-    assert (destination / "photo.jpg").exists()
-    assert (destination / "photo_1.jpg").exists()
+
+    assert (
+        destination / "photo.jpg"
+    ).exists()
+
+    assert (
+        destination / "photo_1.jpg"
+    ).exists()
 
 
 def test_conflict_skip(tmp_path):
-    destination = tmp_path / "Images"
+    destination = (
+        tmp_path / "Images"
+    )
+
     destination.mkdir()
 
-    existing = destination / "photo.jpg"
+    existing = (
+        destination / "photo.jpg"
+    )
+
     existing.touch()
 
-    new_file = tmp_path / "photo.jpg"
+    new_file = (
+        tmp_path / "photo.jpg"
+    )
+
     new_file.touch()
 
-    result = organize_files(tmp_path, TEST_CATEGORIES, on_conflict="skip")
+    result = organize_files(
+        tmp_path,
+        TEST_CATEGORIES,
+        on_conflict="skip",
+    )
 
     assert result.moved == 0
     assert result.failed == 0
     assert result.skipped == 1
+
     assert existing.exists()
     assert new_file.exists()
 
-def test_invalid_conflict_policy(tmp_path):
-    destination = tmp_path / "Images"
+
+def test_invalid_conflict_policy(
+    tmp_path,
+):
+    destination = (
+        tmp_path / "Images"
+    )
+
     destination.mkdir()
 
     with pytest.raises(ValueError):
         resolve_destination(
             destination,
             "photo.jpg",
-            "invalid"
+            "invalid",
         )
 
-def test_excluded_file_is_not_moved(tmp_path):
-    config_file = tmp_path / "config.json"
+
+def test_excluded_file_is_not_moved(
+    tmp_path,
+):
+    config_file = (
+        tmp_path / "config.json"
+    )
+
     config_file.touch()
 
-    photo = tmp_path / "photo.jpg"
+    photo = (
+        tmp_path / "photo.jpg"
+    )
+
     photo.touch()
 
     result = organize_files(
         tmp_path,
         TEST_CATEGORIES,
-        exclude_paths={config_file},
+        exclude_paths={
+            config_file
+        },
     )
 
     assert result.moved == 1
@@ -200,4 +417,9 @@ def test_excluded_file_is_not_moved(tmp_path):
     assert result.failed == 0
 
     assert config_file.exists()
-    assert (tmp_path / "Images" / "photo.jpg").exists()
+
+    assert (
+        tmp_path
+        / "Images"
+        / "photo.jpg"
+    ).exists()

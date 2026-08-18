@@ -1,4 +1,5 @@
 import json
+import pytest
 
 from file_organizer.cli import (
     EXIT_CONFIG_ERROR,
@@ -8,27 +9,45 @@ from file_organizer.cli import (
 )
 
 
-def create_config(path, categories=None):
+def create_config(
+    path,
+    categories=None,
+):
     if categories is None:
         categories = {
-            "Images": [".jpg", ".png"],
-            "Documents": [".pdf"],
-            "Vectors": [".ai"],
+            "Images": [
+                ".jpg",
+                ".png",
+            ],
+            "Documents": [
+                ".pdf",
+            ],
+            "Vectors": [
+                ".ai",
+            ],
             "Others": [],
         }
 
     path.write_text(
         json.dumps(
-            {"categories": categories},
+            {
+                "categories": categories
+            },
             indent=2,
         ),
         encoding="utf-8",
     )
 
 
-def test_cli_success(tmp_path, capsys):
+def test_cli_success(
+    tmp_path,
+    capsys,
+):
     config_file = tmp_path / "config.json"
-    create_config(config_file)
+
+    create_config(
+        config_file
+    )
 
     photo = tmp_path / "photo.jpg"
     photo.touch()
@@ -45,14 +64,27 @@ def test_cli_success(tmp_path, capsys):
     assert "Moved   : 1" in captured.out
     assert "Skipped : 0" in captured.out
     assert "Failed  : 0" in captured.out
-    assert (tmp_path / "Images" / "photo.jpg").exists()
+
+    assert (
+        tmp_path
+        / "Images"
+        / "photo.jpg"
+    ).exists()
 
 
-def test_cli_missing_folder(tmp_path, capsys):
+def test_cli_missing_folder(
+    tmp_path,
+    capsys,
+):
     config_file = tmp_path / "config.json"
-    create_config(config_file)
 
-    missing_folder = tmp_path / "does_not_exist"
+    create_config(
+        config_file
+    )
+
+    missing_folder = (
+        tmp_path / "does_not_exist"
+    )
 
     result = main([
         str(missing_folder),
@@ -63,11 +95,46 @@ def test_cli_missing_folder(tmp_path, capsys):
     captured = capsys.readouterr()
 
     assert result == EXIT_CONFIG_ERROR
-    assert "Folder does not exist" in captured.err
+
+    assert (
+        "Folder does not exist"
+        in captured.err
+    )
 
 
-def test_cli_invalid_config(tmp_path, capsys):
-    config_file = tmp_path / "broken.json"
+def test_cli_missing_folder_argument(
+    tmp_path,
+    capsys,
+):
+    config_file = tmp_path / "config.json"
+
+    create_config(
+        config_file
+    )
+
+    result = main([
+        "--config",
+        str(config_file),
+    ])
+
+    captured = capsys.readouterr()
+
+    assert result == EXIT_CONFIG_ERROR
+
+    assert (
+        "folder is required"
+        in captured.err
+    )
+
+
+def test_cli_invalid_config(
+    tmp_path,
+    capsys,
+):
+    config_file = (
+        tmp_path / "broken.json"
+    )
+
     config_file.write_text(
         '{"wrong_key": {}}',
         encoding="utf-8",
@@ -82,12 +149,24 @@ def test_cli_invalid_config(tmp_path, capsys):
     captured = capsys.readouterr()
 
     assert result == EXIT_CONFIG_ERROR
-    assert "Config must contain 'categories'" in captured.err
+
+    assert (
+        "Config must contain 'categories'"
+        in captured.err
+    )
 
 
-def test_cli_dry_run(tmp_path, capsys):
-    config_file = tmp_path / "config.json"
-    create_config(config_file)
+def test_cli_dry_run(
+    tmp_path,
+    capsys,
+):
+    config_file = (
+        tmp_path / "config.json"
+    )
+
+    create_config(
+        config_file
+    )
 
     photo = tmp_path / "photo.jpg"
     photo.touch()
@@ -103,19 +182,40 @@ def test_cli_dry_run(tmp_path, capsys):
 
     assert result == EXIT_OK
     assert "Moved   : 0" in captured.out
+    assert "Skipped : 0" in captured.out
     assert "Failed  : 0" in captured.out
+
     assert photo.exists()
-    assert not (tmp_path / "Images" / "photo.jpg").exists()
+
+    assert not (
+        tmp_path
+        / "Images"
+        / "photo.jpg"
+    ).exists()
 
 
-def test_cli_recursive(tmp_path, capsys):
-    config_file = tmp_path / "config.json"
-    create_config(config_file)
+def test_cli_recursive(
+    tmp_path,
+    capsys,
+):
+    config_file = (
+        tmp_path / "config.json"
+    )
 
-    nested = tmp_path / "Projects"
+    create_config(
+        config_file
+    )
+
+    nested = (
+        tmp_path / "Projects"
+    )
+
     nested.mkdir()
 
-    design = nested / "design.ai"
+    design = (
+        nested / "design.ai"
+    )
+
     design.touch()
 
     result = main([
@@ -129,19 +229,42 @@ def test_cli_recursive(tmp_path, capsys):
 
     assert result == EXIT_OK
     assert "Moved   : 1" in captured.out
-    assert (tmp_path / "Vectors" / "design.ai").exists()
 
-def test_cli_conflict_skip(tmp_path, capsys):
-    config_file = tmp_path / "config.json"
-    create_config(config_file)
+    assert (
+        tmp_path
+        / "Vectors"
+        / "design.ai"
+    ).exists()
 
-    image_dir = tmp_path / "Images"
+
+def test_cli_conflict_skip(
+    tmp_path,
+    capsys,
+):
+    config_file = (
+        tmp_path / "config.json"
+    )
+
+    create_config(
+        config_file
+    )
+
+    image_dir = (
+        tmp_path / "Images"
+    )
+
     image_dir.mkdir()
 
-    existing = image_dir / "photo.jpg"
+    existing = (
+        image_dir / "photo.jpg"
+    )
+
     existing.touch()
 
-    new_file = tmp_path / "photo.jpg"
+    new_file = (
+        tmp_path / "photo.jpg"
+    )
+
     new_file.touch()
 
     result = main([
@@ -158,5 +281,90 @@ def test_cli_conflict_skip(tmp_path, capsys):
     assert "Moved   : 0" in captured.out
     assert "Skipped : 1" in captured.out
     assert "Failed  : 0" in captured.out
+
     assert existing.exists()
     assert new_file.exists()
+
+
+def test_cli_list_categories(
+    tmp_path,
+    capsys,
+):
+    config_file = (
+        tmp_path / "config.json"
+    )
+
+    create_config(
+        config_file,
+        {
+            "Images": [
+                ".jpg",
+                ".png",
+            ],
+            "Design": [
+                ".psd",
+                ".fig",
+            ],
+        },
+    )
+
+    result = main([
+        "--config",
+        str(config_file),
+        "--list-categories",
+    ])
+
+    captured = capsys.readouterr()
+
+    assert result == EXIT_OK
+
+    assert "Images" in captured.out
+    assert ".jpg" in captured.out
+    assert ".png" in captured.out
+
+    assert "Design" in captured.out
+    assert ".psd" in captured.out
+    assert ".fig" in captured.out
+
+
+def test_cli_list_categories_without_folder(
+    tmp_path,
+    capsys,
+):
+    config_file = (
+        tmp_path / "config.json"
+    )
+
+    create_config(
+        config_file
+    )
+
+    result = main([
+        "--config",
+        str(config_file),
+        "--list-categories",
+    ])
+
+    captured = capsys.readouterr()
+
+    assert result == EXIT_OK
+    assert "Images" in captured.out
+
+
+def test_cli_version(capsys):
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--version"])
+
+    captured = capsys.readouterr()
+
+    assert exc_info.value.code == 0
+    assert "0.2.0" in captured.out
+
+
+def test_cli_invalid_operation_code():
+    """
+    Placeholder for a future test that
+    simulates a failed file operation.
+    """
+
+    assert EXIT_OPERATION_ERROR == 2

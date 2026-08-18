@@ -43,7 +43,9 @@ def load_config(config_path: Path) -> dict:
     return config
 
 
-def build_extension_mapping(config: dict) -> dict[str, str]:
+def build_extension_mapping(
+    config: dict,
+) -> dict[str, str]:
     mapping: dict[str, str] = {}
 
     for category, extensions in config["categories"].items():

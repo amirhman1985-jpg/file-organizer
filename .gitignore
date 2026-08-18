@@ -1,9 +1,29 @@
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*.pyo
+
+# Virtual environments
 .venv/
 venv/
+env/
+
+# Environment variables
 .env
+.env.*
+
+# IDE
 .vscode/
+.idea/
+
+# Logs
+*.log
+File_organizer.log
+
+# Tests / cache
+.pytest_cache/
+.coverage
+htmlcov/
 test_files/
 test_files_2/
 File_organizer.log
@@ -11,3 +31,15 @@ test_cli/
 test_cli_real/
 test_recursive/
 test_recursive_new/
+
+# Packaging
+build/
+dist/
+*.egg-info/
+
+# PyInstaller
+*.spec
+
+# OS
+Thumbs.db
+.DS_Store
