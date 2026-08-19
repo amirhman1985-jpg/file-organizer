@@ -48,6 +48,10 @@ build/
 dist/
 *.spec
 
+keys/
+license-*.json
+license_private.key
+
 release/
 release_test/
 

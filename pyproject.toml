@@ -6,6 +6,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "file-organizer"
 version = "0.2.1"
+dependencies = [
+    "cryptography>=50,<51"
+]
 
 description = "A configurable Python CLI tool for organizing files by extension."
 

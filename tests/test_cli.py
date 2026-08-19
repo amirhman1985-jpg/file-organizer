@@ -1,12 +1,72 @@
+import base64
 import json
+
 import pytest
 
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+    Ed25519PrivateKey,
+)
+
+from file_organizer import license as license_module
 from file_organizer.cli import (
     EXIT_CONFIG_ERROR,
+    EXIT_LICENSE_ERROR,
     EXIT_OK,
     EXIT_OPERATION_ERROR,
     main,
 )
+
+
+@pytest.fixture
+def test_license(tmp_path, monkeypatch):
+    """
+    Create a valid signed Pro license for CLI tests.
+    """
+
+    private_key = Ed25519PrivateKey.generate()
+    public_key = private_key.public_key()
+
+    public_key_b64 = base64.b64encode(
+        public_key.public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+    ).decode("ascii")
+
+    license_data = {
+        "license_id": "TEST-001",
+        "customer": "Test User",
+        "edition": "pro",
+        "expires_at": None,
+    }
+
+    payload = json.dumps(
+        license_data,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+    signature = private_key.sign(payload)
+
+    license_data["signature"] = base64.b64encode(
+        signature
+    ).decode("ascii")
+
+    license_file = tmp_path / "license.json"
+
+    license_file.write_text(
+        json.dumps(license_data),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        license_module,
+        "PUBLIC_KEY_B64",
+        public_key_b64,
+    )
+
+    return license_file
 
 
 def create_config(
@@ -31,7 +91,7 @@ def create_config(
     path.write_text(
         json.dumps(
             {
-                "categories": categories
+                "categories": categories,
             },
             indent=2,
         ),
@@ -42,12 +102,11 @@ def create_config(
 def test_cli_success(
     tmp_path,
     capsys,
+    test_license,
 ):
     config_file = tmp_path / "config.json"
 
-    create_config(
-        config_file
-    )
+    create_config(config_file)
 
     photo = tmp_path / "photo.jpg"
     photo.touch()
@@ -56,6 +115,8 @@ def test_cli_success(
         str(tmp_path),
         "--config",
         str(config_file),
+        "--license",
+        str(test_license),
     ])
 
     captured = capsys.readouterr()
@@ -75,12 +136,11 @@ def test_cli_success(
 def test_cli_missing_folder(
     tmp_path,
     capsys,
+    test_license,
 ):
     config_file = tmp_path / "config.json"
 
-    create_config(
-        config_file
-    )
+    create_config(config_file)
 
     missing_folder = (
         tmp_path / "does_not_exist"
@@ -90,6 +150,8 @@ def test_cli_missing_folder(
         str(missing_folder),
         "--config",
         str(config_file),
+        "--license",
+        str(test_license),
     ])
 
     captured = capsys.readouterr()
@@ -105,16 +167,17 @@ def test_cli_missing_folder(
 def test_cli_missing_folder_argument(
     tmp_path,
     capsys,
+    test_license,
 ):
     config_file = tmp_path / "config.json"
 
-    create_config(
-        config_file
-    )
+    create_config(config_file)
 
     result = main([
         "--config",
         str(config_file),
+        "--license",
+        str(test_license),
     ])
 
     captured = capsys.readouterr()
@@ -130,6 +193,7 @@ def test_cli_missing_folder_argument(
 def test_cli_invalid_config(
     tmp_path,
     capsys,
+    test_license,
 ):
     config_file = (
         tmp_path / "broken.json"
@@ -144,6 +208,8 @@ def test_cli_invalid_config(
         str(tmp_path),
         "--config",
         str(config_file),
+        "--license",
+        str(test_license),
     ])
 
     captured = capsys.readouterr()
@@ -159,6 +225,7 @@ def test_cli_invalid_config(
 def test_cli_dry_run(
     tmp_path,
     capsys,
+    test_license,
 ):
     config_file = (
         tmp_path / "config.json"
@@ -175,6 +242,8 @@ def test_cli_dry_run(
         str(tmp_path),
         "--config",
         str(config_file),
+        "--license",
+        str(test_license),
         "--dry-run",
     ])
 
@@ -197,6 +266,7 @@ def test_cli_dry_run(
 def test_cli_recursive(
     tmp_path,
     capsys,
+    test_license,
 ):
     config_file = (
         tmp_path / "config.json"
@@ -222,6 +292,8 @@ def test_cli_recursive(
         str(tmp_path),
         "--config",
         str(config_file),
+        "--license",
+        str(test_license),
         "--recursive",
     ])
 
@@ -240,6 +312,7 @@ def test_cli_recursive(
 def test_cli_conflict_skip(
     tmp_path,
     capsys,
+    test_license,
 ):
     config_file = (
         tmp_path / "config.json"
@@ -271,6 +344,8 @@ def test_cli_conflict_skip(
         str(tmp_path),
         "--config",
         str(config_file),
+        "--license",
+        str(test_license),
         "--on-conflict",
         "skip",
     ])
@@ -289,6 +364,7 @@ def test_cli_conflict_skip(
 def test_cli_list_categories(
     tmp_path,
     capsys,
+    test_license,
 ):
     config_file = (
         tmp_path / "config.json"
@@ -311,6 +387,8 @@ def test_cli_list_categories(
     result = main([
         "--config",
         str(config_file),
+        "--license",
+        str(test_license),
         "--list-categories",
     ])
 
@@ -330,6 +408,7 @@ def test_cli_list_categories(
 def test_cli_list_categories_without_folder(
     tmp_path,
     capsys,
+    test_license,
 ):
     config_file = (
         tmp_path / "config.json"
@@ -342,6 +421,8 @@ def test_cli_list_categories_without_folder(
     result = main([
         "--config",
         str(config_file),
+        "--license",
+        str(test_license),
         "--list-categories",
     ])
 
@@ -360,6 +441,7 @@ def test_cli_version(capsys):
     assert exc_info.value.code == 0
     assert "0.2.1" in captured.out
 
+
 def test_cli_invalid_operation_code():
     """
     Placeholder for a future test that
@@ -367,6 +449,7 @@ def test_cli_invalid_operation_code():
     """
 
     assert EXIT_OPERATION_ERROR == 2
+
 
 def test_free_edition(tmp_path):
     file = tmp_path / "photo.jpg"
@@ -377,13 +460,20 @@ def test_free_edition(tmp_path):
         edition="free",
     )
 
-    assert result == 0
-    assert (tmp_path / "Images" / "photo.jpg").exists()
+    assert result == EXIT_OK
+    assert (
+        tmp_path
+        / "Images"
+        / "photo.jpg"
+    ).exists()
 
 
 def test_free_rejects_custom_config(tmp_path):
     config = tmp_path / "custom.json"
-    config.write_text("{}", encoding="utf-8")
+    config.write_text(
+        "{}",
+        encoding="utf-8",
+    )
 
     with pytest.raises(SystemExit):
         main(
@@ -395,41 +485,88 @@ def test_free_rejects_custom_config(tmp_path):
             edition="free",
         )
 
+
 def test_free_edition_uses_free_features(capsys):
     with pytest.raises(SystemExit) as exc_info:
-        main(["--version"], edition="free")
+        main(
+            ["--version"],
+            edition="free",
+        )
 
     assert exc_info.value.code == 0
 
     captured = capsys.readouterr()
 
-    assert "FileOrganizer Free 0.2.1" in captured.out
+    assert (
+        "FileOrganizer Free 0.2.1"
+        in captured.out
+    )
+
 
 def test_free_rejects_recursive():
     with pytest.raises(SystemExit) as exc_info:
-        main(["--recursive"], edition="free")
+        main(
+            ["--recursive"],
+            edition="free",
+        )
 
     assert exc_info.value.code == 2
 
 
 def test_free_rejects_dry_run():
     with pytest.raises(SystemExit) as exc_info:
-        main(["--dry-run"], edition="free")
+        main(
+            ["--dry-run"],
+            edition="free",
+        )
 
     assert exc_info.value.code == 2
 
-def test_pro_accepts_recursive(tmp_path):
+
+def test_pro_accepts_recursive(
+    tmp_path,
+    test_license,
+):
     result = main(
-        [str(tmp_path), "--recursive"],
+        [
+            str(tmp_path),
+            "--recursive",
+            "--license",
+            str(test_license),
+        ],
         edition="pro",
     )
 
-    assert result == 0
+    assert result == EXIT_OK
 
-def test_pro_accepts_dry_run(tmp_path):
+
+def test_pro_accepts_dry_run(
+    tmp_path,
+    test_license,
+):
     result = main(
-        [str(tmp_path), "--dry-run"],
+        [
+            str(tmp_path),
+            "--dry-run",
+            "--license",
+            str(test_license),
+        ],
         edition="pro",
     )
 
-    assert result == 0
+    assert result == EXIT_OK
+
+
+def test_pro_requires_license(
+    tmp_path,
+    capsys,
+):
+    result = main(
+        [str(tmp_path)],
+        edition="pro",
+    )
+
+    captured = capsys.readouterr()
+
+    assert result == EXIT_LICENSE_ERROR
+    assert "License error" in captured.err

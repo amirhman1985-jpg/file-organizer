@@ -6,11 +6,13 @@ from file_organizer import __version__
 from file_organizer.config import load_config, build_extension_mapping
 from file_organizer.features import FREE_FEATURES, PRO_FEATURES
 from file_organizer.organizer import organize_files
+from file_organizer.license import load_license, LicenseError
 
 
 EXIT_OK = 0
 EXIT_CONFIG_ERROR = 1
 EXIT_OPERATION_ERROR = 2
+EXIT_LICENSE_ERROR = 3
 
 
 FREE_CATEGORIES = {
@@ -47,6 +49,22 @@ def get_default_config_path() -> Path:
     return Path("config.json").resolve()
 
 
+def get_default_license_path() -> Path:
+    """
+    Return the default Pro license path.
+
+    In PyInstaller executable mode:
+        directory containing the executable / license.json
+
+    In development:
+        current working directory / license.json
+    """
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent / "license.json"
+
+    return Path("license.json").resolve()
+
+
 def print_categories(
     categories: dict[str, list[str]],
 ) -> None:
@@ -63,6 +81,7 @@ def main(
     argv: list[str] | None = None,
     edition: str = "pro",
 ) -> int:
+
     # -----------------------------
     # Select edition
     # -----------------------------
@@ -71,7 +90,10 @@ def main(
     elif edition == "pro":
         features = PRO_FEATURES
     else:
-        print(f"Error: Unsupported edition: {edition}", file=sys.stderr)
+        print(
+            f"Error: Unsupported edition: {edition}",
+            file=sys.stderr,
+        )
         return EXIT_CONFIG_ERROR
 
     # -----------------------------
@@ -144,7 +166,36 @@ def main(
             help="List configured categories and extensions",
         )
 
+    # Pro only
+    if edition == "pro":
+        parser.add_argument(
+            "--license",
+            type=Path,
+            default=get_default_license_path(),
+            help="Path to Pro license file",
+        )
+
     args = parser.parse_args(argv)
+
+    # -----------------------------
+    # Validate Pro license
+    # -----------------------------
+    if edition == "pro":
+        try:
+            license_data = load_license(args.license)
+        except LicenseError as error:
+            print(
+                f"License error: {error}",
+                file=sys.stderr,
+            )
+            return EXIT_LICENSE_ERROR
+
+        if license_data.edition != "pro":
+            print(
+                "License error: License is not for Pro edition.",
+                file=sys.stderr,
+            )
+            return EXIT_LICENSE_ERROR
 
     # -----------------------------
     # Load configuration
@@ -169,7 +220,9 @@ def main(
     # List categories - Pro only
     # -----------------------------
     if features.list_categories and args.list_categories:
-        print_categories(config["categories"])
+        print_categories(
+            config["categories"]
+        )
         return EXIT_OK
 
     # -----------------------------
@@ -183,7 +236,10 @@ def main(
             else "Error: folder is required."
         )
 
-        print(message, file=sys.stderr)
+        print(
+            message,
+            file=sys.stderr,
+        )
         return EXIT_CONFIG_ERROR
 
     # -----------------------------
@@ -221,8 +277,11 @@ def main(
         ),
         on_conflict=args.on_conflict,
         exclude_paths=(
-            {args.config.resolve()}
-            if features.custom_config
+            {
+                args.config.resolve(),
+                args.license.resolve(),
+            }
+            if edition == "pro"
             else set()
         ),
     )
