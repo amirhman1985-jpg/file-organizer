@@ -2,14 +2,9 @@ import argparse
 import sys
 from pathlib import Path
 
-from .config import (
-    build_extension_mapping,
-    load_config,
-)
-
-from .organizer import organize_files
-
-from . import __version__
+from file_organizer.config import load_config, build_extension_mapping
+from file_organizer.organizer import organize_files
+from file_organizer import __version__
 
 
 EXIT_OK = 0

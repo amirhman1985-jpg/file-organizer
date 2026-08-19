@@ -43,3 +43,7 @@ dist/
 # OS
 Thumbs.db
 .DS_Store
+
+build/
+dist/
+*.spec
