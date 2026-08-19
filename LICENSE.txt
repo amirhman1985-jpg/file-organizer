@@ -1,0 +1,8 @@
+File Organizer
+Copyright (c) 2026
+
+All rights reserved.
+
+Permission is not granted to copy, modify, redistribute, sublicense,
+or resell this software without explicit permission from the copyright
+holder.

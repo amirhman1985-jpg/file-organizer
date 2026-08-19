@@ -47,3 +47,7 @@ Thumbs.db
 build/
 dist/
 *.spec
+
+release/
+release_test/
+
