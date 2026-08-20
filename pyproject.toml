@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "file-organizer"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
     "cryptography>=50,<51"
 ]
