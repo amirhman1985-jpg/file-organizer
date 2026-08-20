@@ -40,7 +40,8 @@ def _canonical_payload(data: dict) -> bytes:
     ).encode("utf-8")
 
 
-def load_license(license_path: Path) -> License:
+def load_license(license_path: str | Path) -> License:
+    license_path = Path(license_path)
     try:
         data = json.loads(
             license_path.read_text(encoding="utf-8")
