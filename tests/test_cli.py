@@ -440,7 +440,7 @@ def test_cli_version(capsys):
     captured = capsys.readouterr()
 
     assert exc_info.value.code == 0
-    assert "0.3.0" in captured.out
+    assert "0.3.1" in captured.out
 
 
 def test_cli_invalid_operation_code():
@@ -499,7 +499,7 @@ def test_free_edition_uses_free_features(capsys):
     captured = capsys.readouterr()
 
     assert (
-        "FileOrganizer Free 0.3.0"
+        "FileOrganizer Free 0.3.1"
         in captured.out
     )
 
