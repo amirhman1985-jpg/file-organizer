@@ -23,6 +23,8 @@ def create_signed_license(
     customer="Test User",
     edition="pro",
     expires_at=None,
+    product="File Organizer",
+    publisher="TechYarman",
 ):
     private_key = Ed25519PrivateKey.generate()
     public_key = private_key.public_key()
@@ -36,6 +38,8 @@ def create_signed_license(
 
     license_data = {
         "license_id": license_id,
+        "product": product,
+        "publisher": publisher,
         "customer": customer,
         "edition": edition,
         "expires_at": expires_at,
@@ -168,6 +172,40 @@ def test_non_pro_license(
     with pytest.raises(
         LicenseError,
         match="not a Pro license",
+    ):
+        load_license(license_file)
+
+
+def test_wrong_product(
+    tmp_path,
+    monkeypatch,
+):
+    license_file = create_signed_license(
+        tmp_path,
+        monkeypatch,
+        product="Other Product",
+    )
+
+    with pytest.raises(
+        LicenseError,
+        match="different product",
+    ):
+        load_license(license_file)
+
+
+def test_wrong_publisher(
+    tmp_path,
+    monkeypatch,
+):
+    license_file = create_signed_license(
+        tmp_path,
+        monkeypatch,
+        publisher="OtherBrand",
+    )
+
+    with pytest.raises(
+        LicenseError,
+        match="not issued by TechYarman",
     ):
         load_license(license_file)
 

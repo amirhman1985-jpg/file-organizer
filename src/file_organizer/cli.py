@@ -2,7 +2,12 @@ import argparse
 import sys
 from pathlib import Path
 
-from file_organizer import __version__
+from file_organizer import (
+    __version__,
+    PRODUCT_NAME,
+    PUBLISHER,
+    COPYRIGHT,
+)
 from file_organizer.config import load_config, build_extension_mapping
 from file_organizer.features import FREE_FEATURES, PRO_FEATURES
 from file_organizer.organizer import organize_files
@@ -33,6 +38,13 @@ FREE_CATEGORIES = {
 }
 
 
+def print_about(edition: str) -> None:
+    print(f"{PRODUCT_NAME} {edition}")
+    print(f"Version   : {__version__}")
+    print(f"Publisher : {PUBLISHER}")
+    print(f"Copyright : {COPYRIGHT}")
+
+
 def get_default_config_path() -> Path:
     """
     Return the default config path.
@@ -53,11 +65,11 @@ def get_default_license_path() -> Path:
     """
     Return the default Pro license path.
 
-    In PyInstaller executable mode:
-        directory containing the executable / license.json
-
     In development:
         current working directory / license.json
+
+    In PyInstaller executable mode:
+        directory containing the executable / license.json
     """
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent / "license.json"
@@ -122,6 +134,13 @@ def main(
         version=f"%(prog)s {__version__}",
     )
 
+    # Common argument
+    parser.add_argument(
+        "--about",
+        action="store_true",
+        help="Show product and publisher information",
+    )
+
     # Pro only
     if features.custom_config:
         parser.add_argument(
@@ -176,6 +195,13 @@ def main(
         )
 
     args = parser.parse_args(argv)
+
+    # -----------------------------
+    # About
+    # -----------------------------
+    if args.about:
+        print_about(features.name)
+        return EXIT_OK
 
     # -----------------------------
     # Validate Pro license

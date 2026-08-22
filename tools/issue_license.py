@@ -6,7 +6,8 @@ import sys
 from pathlib import Path
 
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+from file_organizer import PRODUCT_NAME, PUBLISHER
 
 
 PRIVATE_KEY_PATH = Path("keys/license_private.key")
@@ -15,6 +16,8 @@ PRIVATE_KEY_PATH = Path("keys/license_private.key")
 def canonical_payload(data: dict) -> bytes:
     payload = {
         "license_id": data["license_id"],
+        "product": data["product"],
+        "publisher": data["publisher"],
         "customer": data["customer"],
         "edition": data["edition"],
         "expires_at": data.get("expires_at"),
@@ -45,6 +48,8 @@ def main() -> None:
 
     data = {
         "license_id": license_id,
+        "product": PRODUCT_NAME,
+        "publisher": PUBLISHER,
         "customer": customer,
         "edition": "pro",
         "expires_at": None,
@@ -58,7 +63,9 @@ def main() -> None:
         signature
     ).decode("ascii")
 
-    output = Path(f"license-{license_id}.json")
+    output = Path(
+        f"license-{license_id}.json"
+    )
 
     output.write_text(
         json.dumps(

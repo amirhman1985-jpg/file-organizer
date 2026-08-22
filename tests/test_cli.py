@@ -36,6 +36,8 @@ def test_license(tmp_path, monkeypatch):
 
     license_data = {
         "license_id": "TEST-001",
+        "product": "File Organizer",
+        "publisher": "TechYarman",
         "customer": "Test User",
         "edition": "pro",
         "expires_at": None,
@@ -67,7 +69,6 @@ def test_license(tmp_path, monkeypatch):
     )
 
     return license_file
-
 
 def create_config(
     path,
