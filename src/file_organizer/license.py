@@ -28,13 +28,14 @@ class License:
 class LicenseError(ValueError):
     pass
 
-
-def _canonical_payload(data: dict) -> bytes:
+def canonical_payload(data: dict) -> bytes:
     payload = {
         "license_id": data["license_id"],
+        "order_id": data["order_id"],
         "product": data["product"],
         "publisher": data["publisher"],
         "customer": data["customer"],
+        "customer_email": data.get("customer_email"),
         "edition": data["edition"],
         "expires_at": data.get("expires_at"),
     }
@@ -59,13 +60,15 @@ def load_license(license_path: str | Path) -> License:
         ) from exc
 
     required_fields = {
-        "license_id",
-        "product",
-        "publisher",
-        "customer",
-        "edition",
-        "expires_at",
-        "signature",
+    "license_id",
+    "order_id",
+    "product",
+    "publisher",
+    "customer",
+    "customer_email",
+    "edition",
+    "expires_at",
+    "signature",
     }
 
     missing = required_fields - data.keys()
@@ -88,7 +91,7 @@ def load_license(license_path: str | Path) -> License:
 
         public_key.verify(
             signature,
-            _canonical_payload(data),
+            canonical_payload(data),
         )
 
     except (ValueError, InvalidSignature) as exc:

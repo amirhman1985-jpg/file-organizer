@@ -20,11 +20,13 @@ def create_signed_license(
     monkeypatch,
     *,
     license_id="TEST-001",
-    customer="Test User",
-    edition="pro",
-    expires_at=None,
+    order_id="ORDER-TEST-001",
     product="File Organizer",
     publisher="TechYarman",
+    customer="Test User",
+    customer_email="test@example.com",
+    edition="pro",
+    expires_at=None,
 ):
     private_key = Ed25519PrivateKey.generate()
     public_key = private_key.public_key()
@@ -37,12 +39,14 @@ def create_signed_license(
     ).decode("ascii")
 
     license_data = {
-        "license_id": license_id,
-        "product": product,
-        "publisher": publisher,
-        "customer": customer,
-        "edition": edition,
-        "expires_at": expires_at,
+    "license_id": license_id,
+    "order_id": order_id,
+    "product": product,
+    "publisher": publisher,
+    "customer": customer,
+    "customer_email": customer_email,
+    "edition": edition,
+    "expires_at": expires_at,
     }
 
     payload = json.dumps(
@@ -256,3 +260,4 @@ def test_missing_license_file(tmp_path):
 
     with pytest.raises(LicenseError):
         load_license(license_file)
+

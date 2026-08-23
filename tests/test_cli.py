@@ -36,9 +36,11 @@ def test_license(tmp_path, monkeypatch):
 
     license_data = {
         "license_id": "TEST-001",
+        "order_id": "ORDER-TEST-001",
         "product": "File Organizer",
         "publisher": "TechYarman",
         "customer": "Test User",
+        "customer_email": "test@example.com",
         "edition": "pro",
         "expires_at": None,
     }
