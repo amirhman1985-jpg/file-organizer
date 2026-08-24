@@ -286,3 +286,91 @@ def test_generated_license_is_valid(
     assert license_data.customer == (
         "Test User"
     )
+
+    def test_duplicate_successful_payment_is_idempotent(
+        tmp_path,
+        monkeypatch,
+    ):
+        create_test_order(
+            tmp_path,
+            monkeypatch,
+        )
+
+        first_license = process_payment(
+            order_id="ORD-PAY-001",
+            payment_id="PAY-IDEMPOTENT-001",
+            status="paid",
+            amount=99000,
+            currency="IRR",
+        )
+
+        second_license = process_payment(
+            order_id="ORD-PAY-001",
+            payment_id="PAY-IDEMPOTENT-001",
+            status="paid",
+            amount=99000,
+            currency="IRR",
+        )
+
+        assert first_license == second_license
+        assert first_license.exists()
+
+        order = order_manager.load_order(
+            "ORD-PAY-001"
+        )
+
+        assert order["status"] == "paid"
+        assert order["payment_id"] == (
+            "PAY-IDEMPOTENT-001"
+        )
+
+        active_licenses = list(
+            license_manager.ACTIVE_DIR.glob(
+                "*.json"
+         )
+        )
+
+        assert len(active_licenses) == 1
+
+def test_payment_id_cannot_be_reused_for_another_order(
+    tmp_path,
+    monkeypatch,
+):
+    create_test_order(
+        tmp_path,
+        monkeypatch,
+    )
+
+    order_manager.create_order(
+        order_id="ORD-PAY-002",
+        customer="Another User",
+        customer_email="another@example.com",
+        amount=99000,
+        currency="IRR",
+    )
+
+    process_payment(
+        order_id="ORD-PAY-001",
+        payment_id="PAY-REUSED-001",
+        status="paid",
+        amount=99000,
+        currency="IRR",
+    )
+
+    try:
+        process_payment(
+            order_id="ORD-PAY-002",
+            payment_id="PAY-REUSED-001",
+            status="paid",
+            amount=99000,
+            currency="IRR",
+        )
+    except PaymentError as exc:
+        assert (
+            "already associated"
+            in str(exc)
+        )
+    else:
+        raise AssertionError(
+            "Expected PaymentError"
+        )

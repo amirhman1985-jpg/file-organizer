@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 from tools import order_manager
 
@@ -10,19 +11,71 @@ class PaymentError(ValueError):
     """Raised when a payment cannot be accepted."""
 
 
+def find_order_by_payment_id(
+    payment_id: str,
+) -> dict | None:
+    """
+    Find an order that already uses the given payment ID.
+
+    Returns the order dictionary when found, otherwise None.
+    """
+    order_manager.ensure_orders_directory()
+
+    for path in order_manager.ORDERS_DIR.glob("*.json"):
+        try:
+            order = order_manager.load_order(
+                path.stem
+            )
+        except (FileNotFoundError, ValueError):
+            continue
+
+        if order.get("payment_id") == payment_id:
+            return order
+
+    return None
+
+
+def get_existing_license_path(
+    order: dict,
+) -> Path:
+    """
+    Return the existing license path for an already-paid order.
+    """
+    license_id = order.get("license_id")
+
+    if not license_id:
+        raise PaymentError(
+            "Paid order does not have a license ID."
+        )
+
+    license_path = (
+        Path("licenses")
+        / "active"
+        / f"{license_id}.json"
+    )
+
+    if not license_path.exists():
+        raise PaymentError(
+            "Order is marked as paid, but its license file "
+            f"does not exist: {license_path}"
+        )
+
+    return license_path
+
+
 def process_payment(
     order_id: str,
     payment_id: str,
     status: str,
     amount: int,
     currency: str,
-):
+) -> Path:
     """
-    Process a payment event received from a gateway.
+    Process a payment event.
 
-    This function deliberately does not trust the incoming
-    payment amount or currency. It compares them with the
-    original order before marking the order as paid.
+    This function is idempotent:
+    receiving the same successful payment more than once
+    does not issue another license.
     """
 
     if status != "paid":
@@ -39,25 +92,59 @@ def process_payment(
         order_id
     )
 
+    # -------------------------------------------------
+    # Idempotent retry:
+    # same paid order + same payment ID
+    # -------------------------------------------------
     if order["status"] == "paid":
-        raise PaymentError(
-            f"Order is already paid: {order_id}"
+        stored_payment_id = order.get(
+            "payment_id"
         )
+
+        if stored_payment_id == payment_id:
+            return get_existing_license_path(
+                order
+            )
+
+        raise PaymentError(
+            f"Order is already paid with a different "
+            f"payment ID: {order_id}"
+        )
+
+    # -------------------------------------------------
+    # Prevent payment ID reuse across orders
+    # -------------------------------------------------
+    existing_order = find_order_by_payment_id(
+        payment_id
+    )
+
+    if existing_order is not None:
+        if (
+            existing_order["order_id"]
+            != order_id
+        ):
+            raise PaymentError(
+                "Payment ID is already associated "
+                f"with order: "
+                f"{existing_order['order_id']}"
+            )
 
     if order["status"] != "pending":
         raise PaymentError(
-            f"Order cannot be paid from status: "
+            "Order cannot be paid from status: "
             f"{order['status']}"
         )
 
     if amount != order["amount"]:
         raise PaymentError(
-            "Payment amount does not match order amount"
+            "Payment amount does not match "
+            "order amount"
         )
 
     if currency != order["currency"]:
         raise PaymentError(
-            "Payment currency does not match order currency"
+            "Payment currency does not match "
+            "order currency"
         )
 
     license_path = order_manager.mark_paid(
@@ -103,13 +190,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--amount",
         required=True,
         type=int,
-        help="Amount reported by the payment gateway.",
+        help=(
+            "Amount reported by the "
+            "payment gateway."
+        ),
     )
 
     parser.add_argument(
         "--currency",
         required=True,
-        help="Currency reported by the payment gateway.",
+        help=(
+            "Currency reported by the "
+            "payment gateway."
+        ),
     )
 
     return parser
