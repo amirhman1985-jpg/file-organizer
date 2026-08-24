@@ -261,3 +261,58 @@ def test_missing_license_file(tmp_path):
     with pytest.raises(LicenseError):
         load_license(license_file)
 
+def test_tampered_order_id_invalidates_signature(
+    tmp_path,
+    monkeypatch,
+    ):
+    license_file = create_signed_license(
+        tmp_path,
+        monkeypatch,
+    )
+
+    data = json.loads(
+        license_file.read_text(
+            encoding="utf-8"
+        )
+    )
+
+    data["order_id"] = "ORDER-TAMPERED"
+
+    license_file.write_text(
+        json.dumps(data),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        LicenseError,
+        match="Invalid license signature",
+        ):
+        load_license(license_file)
+
+    def test_tampered_customer_email_invalidates_signature(
+        tmp_path,
+        monkeypatch,
+        ):
+        license_file = create_signed_license(
+        tmp_path,
+        monkeypatch,
+        )
+
+    data = json.loads(
+        license_file.read_text(
+            encoding="utf-8"
+        )
+    )
+
+    data["customer_email"] = "hacker@example.com"
+
+    license_file.write_text(
+        json.dumps(data),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        LicenseError,
+        match="Invalid license signature",
+    ):
+        load_license(license_file)

@@ -20,7 +20,11 @@ PUBLIC_KEY_B64 = "qI4liUKqokNQJyEDvM989pTFLL1/TVCyJ/qrpKGBrU4="
 @dataclass(frozen=True)
 class License:
     license_id: str
+    order_id: str
+    product: str
+    publisher: str
     customer: str
+    customer_email: str
     edition: str
     expires_at: date | None
 
@@ -132,8 +136,12 @@ def load_license(license_path: str | Path) -> License:
             )
 
     return License(
-        license_id=data["license_id"],
-        customer=data["customer"],
-        edition=data["edition"],
-        expires_at=expires_at,
-    )
+    license_id=data["license_id"],
+    order_id=data["order_id"],
+    product=data["product"],
+    publisher=data["publisher"],
+    customer=data["customer"],
+    customer_email=data["customer_email"],
+    edition=data["edition"],
+    expires_at=expires_at,
+)
