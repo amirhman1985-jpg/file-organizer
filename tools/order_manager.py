@@ -14,6 +14,7 @@ ORDERS_DIR = Path("orders")
 
 
 def ensure_orders_directory() -> None:
+    """Create the orders directory if it does not exist."""
     ORDERS_DIR.mkdir(
         parents=True,
         exist_ok=True,
@@ -21,6 +22,7 @@ def ensure_orders_directory() -> None:
 
 
 def order_path(order_id: str) -> Path:
+    """Return the filesystem path for an order."""
     return ORDERS_DIR / f"{order_id}.json"
 
 
@@ -31,6 +33,9 @@ def create_order(
     amount: int,
     currency: str = "IRR",
 ) -> Path:
+    """
+    Create a new pending order.
+    """
     ensure_orders_directory()
 
     path = order_path(order_id)
@@ -50,6 +55,7 @@ def create_order(
         "currency": currency,
         "status": "pending",
         "license_id": None,
+        "payment_id": None,
         "created_at": datetime.now(
             timezone.utc
         ).isoformat(),
@@ -70,6 +76,9 @@ def create_order(
 def load_order(
     order_id: str,
 ) -> dict:
+    """
+    Load an order from disk.
+    """
     path = order_path(order_id)
 
     try:
@@ -82,11 +91,18 @@ def load_order(
         raise FileNotFoundError(
             f"Order not found: {order_id}"
         ) from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"Order file is invalid JSON: {order_id}"
+        ) from exc
 
 
 def save_order(
     order: dict,
 ) -> Path:
+    """
+    Save an order to disk.
+    """
     path = order_path(
         order["order_id"]
     )
@@ -104,7 +120,11 @@ def save_order(
 
 def mark_paid(
     order_id: str,
+    payment_id: str | None = None,
 ) -> Path:
+    """
+    Mark a pending order as paid and issue its Pro license.
+    """
     order = load_order(order_id)
 
     if order["status"] == "paid":
@@ -116,6 +136,11 @@ def mark_paid(
         raise ValueError(
             f"Cannot mark order as paid "
             f"from status: {order['status']}"
+        )
+
+    if payment_id is not None and not payment_id.strip():
+        raise ValueError(
+            "Payment ID cannot be empty."
         )
 
     license_id = (
@@ -131,17 +156,19 @@ def mark_paid(
 
     order["status"] = "paid"
     order["license_id"] = license_id
+    order["payment_id"] = payment_id
     order["paid_at"] = datetime.now(
         timezone.utc
     ).isoformat()
 
     save_order(order)
 
-    print(
-        "Order marked as paid"
-    )
+    print("Order marked as paid")
     print(
         f"Order ID   : {order['order_id']}"
+    )
+    print(
+        f"Payment ID : {payment_id or '-'}"
     )
     print(
         f"Customer   : {order['customer']}"
@@ -157,6 +184,9 @@ def mark_paid(
 
 
 def list_orders() -> None:
+    """
+    List all valid order files.
+    """
     ensure_orders_directory()
 
     orders = sorted(
@@ -188,13 +218,83 @@ def list_orders() -> None:
             continue
 
         print(
-            f"  {order['order_id']} "
-            f"| {order['status']} "
-            f"| {order['customer']}"
+            f"  {order.get('order_id', path.stem)} "
+            f"| {order.get('status', 'unknown')} "
+            f"| {order.get('customer', '-')}"
         )
 
 
+def inspect_order(
+    order_id: str,
+) -> int:
+    """
+    Display order details.
+    """
+    try:
+        order = load_order(order_id)
+    except (
+        FileNotFoundError,
+        ValueError,
+    ) as exc:
+        print(
+            f"Error: {exc}",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(
+        f"Order ID       : "
+        f"{order['order_id']}"
+    )
+    print(
+        f"Product        : "
+        f"{order['product']}"
+    )
+    print(
+        f"Publisher      : "
+        f"{order['publisher']}"
+    )
+    print(
+        f"Customer       : "
+        f"{order['customer']}"
+    )
+    print(
+        f"Email          : "
+        f"{order['customer_email']}"
+    )
+    print(
+        f"Amount         : "
+        f"{order['amount']} "
+        f"{order['currency']}"
+    )
+    print(
+        f"Status         : "
+        f"{order['status']}"
+    )
+    print(
+        f"License ID     : "
+        f"{order['license_id'] or '-'}"
+    )
+    print(
+        f"Payment ID     : "
+        f"{order['payment_id'] or '-'}"
+    )
+    print(
+        f"Created        : "
+        f"{order['created_at']}"
+    )
+    print(
+        f"Paid at        : "
+        f"{order['paid_at'] or '-'}"
+    )
+
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
+    """
+    Build the Order Manager CLI parser.
+    """
     parser = argparse.ArgumentParser(
         description=(
             "TechYarman Order Manager "
@@ -207,6 +307,9 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
     )
 
+    # -----------------------------
+    # create
+    # -----------------------------
     create_parser = subparsers.add_parser(
         "create",
         help="Create a new order.",
@@ -243,9 +346,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Order currency.",
     )
 
+    # -----------------------------
+    # mark-paid
+    # -----------------------------
     paid_parser = subparsers.add_parser(
         "mark-paid",
-        help="Mark an order as paid and issue its license.",
+        help=(
+            "Mark an order as paid "
+            "and issue its license."
+        ),
     )
 
     paid_parser.add_argument(
@@ -253,11 +362,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="Order ID.",
     )
 
+    paid_parser.add_argument(
+        "--payment-id",
+        default=None,
+        help="Payment gateway transaction ID.",
+    )
+
+    # -----------------------------
+    # list
+    # -----------------------------
     subparsers.add_parser(
         "list",
         help="List all orders.",
     )
 
+    # -----------------------------
+    # inspect
+    # -----------------------------
     inspect_parser = subparsers.add_parser(
         "inspect",
         help="Inspect a single order.",
@@ -272,9 +393,15 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    """
+    CLI entry point.
+    """
     parser = build_parser()
     args = parser.parse_args()
 
+    # -----------------------------
+    # create
+    # -----------------------------
     if args.command == "create":
         try:
             output = create_order(
@@ -291,7 +418,9 @@ def main() -> int:
             )
             return 1
 
-        print("Order created successfully")
+        print(
+            "Order created successfully"
+        )
         print(
             f"Order ID : {args.order_id}"
         )
@@ -309,7 +438,7 @@ def main() -> int:
             f"{args.amount} {args.currency}"
         )
         print(
-            f"Status   : pending"
+            "Status   : pending"
         )
         print(
             f"File     : {output}"
@@ -317,9 +446,15 @@ def main() -> int:
 
         return 0
 
+    # -----------------------------
+    # mark-paid
+    # -----------------------------
     if args.command == "mark-paid":
         try:
-            mark_paid(args.order_id)
+            mark_paid(
+                order_id=args.order_id,
+                payment_id=args.payment_id,
+            )
         except (
             FileNotFoundError,
             ValueError,
@@ -333,65 +468,20 @@ def main() -> int:
 
         return 0
 
+    # -----------------------------
+    # list
+    # -----------------------------
     if args.command == "list":
         list_orders()
         return 0
 
+    # -----------------------------
+    # inspect
+    # -----------------------------
     if args.command == "inspect":
-        try:
-            order = load_order(
-                args.order_id
-            )
-        except FileNotFoundError as exc:
-            print(
-                f"Error: {exc}",
-                file=sys.stderr,
-            )
-            return 1
-
-        print(
-            f"Order ID       : "
-            f"{order['order_id']}"
+        return inspect_order(
+            args.order_id
         )
-        print(
-            f"Product        : "
-            f"{order['product']}"
-        )
-        print(
-            f"Publisher      : "
-            f"{order['publisher']}"
-        )
-        print(
-            f"Customer       : "
-            f"{order['customer']}"
-        )
-        print(
-            f"Email          : "
-            f"{order['customer_email']}"
-        )
-        print(
-            f"Amount         : "
-            f"{order['amount']} "
-            f"{order['currency']}"
-        )
-        print(
-            f"Status         : "
-            f"{order['status']}"
-        )
-        print(
-            f"License ID     : "
-            f"{order['license_id'] or '-'}"
-        )
-        print(
-            f"Created        : "
-            f"{order['created_at']}"
-        )
-        print(
-            f"Paid at        : "
-            f"{order['paid_at'] or '-'}"
-        )
-
-        return 0
 
     return 1
 
