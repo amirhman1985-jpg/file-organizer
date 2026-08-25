@@ -5,10 +5,13 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-
+from file_organizer.ids import license_id_from_order_id
 from file_organizer import PRODUCT_NAME, PUBLISHER
 from tools.license_manager import issue_license
-
+from file_organizer.ids import (
+    generate_license_id,
+    generate_order_id,
+)
 
 ORDERS_DIR = Path("orders")
 
@@ -27,16 +30,16 @@ def order_path(order_id: str) -> Path:
 
 
 def create_order(
-    order_id: str,
     customer: str,
     customer_email: str,
     amount: int,
     currency: str = "IRR",
+    order_id: str | None = None,
 ) -> Path:
-    """
-    Create a new pending order.
-    """
     ensure_orders_directory()
+
+    if order_id is None:
+        order_id = generate_order_id()
 
     path = order_path(order_id)
 
@@ -71,7 +74,6 @@ def create_order(
     )
 
     return path
-
 
 def load_order(
     order_id: str,
@@ -117,14 +119,10 @@ def save_order(
 
     return path
 
-
 def mark_paid(
     order_id: str,
     payment_id: str | None = None,
 ) -> Path:
-    """
-    Mark a pending order as paid and issue its Pro license.
-    """
     order = load_order(order_id)
 
     if order["status"] == "paid":
@@ -134,17 +132,20 @@ def mark_paid(
 
     if order["status"] != "pending":
         raise ValueError(
-            f"Cannot mark order as paid "
+            "Cannot mark order as paid "
             f"from status: {order['status']}"
         )
 
-    if payment_id is not None and not payment_id.strip():
-        raise ValueError(
-            "Payment ID cannot be empty."
-        )
+    if payment_id is not None:
+        payment_id = payment_id.strip()
 
-    license_id = (
-        f"FOP-{order_id.removeprefix('ORD-')}"
+        if not payment_id:
+            raise ValueError(
+                "Payment ID cannot be empty"
+            )
+
+    license_id = license_id_from_order_id(
+        order["order_id"]
     )
 
     license_path = issue_license(
@@ -167,9 +168,12 @@ def mark_paid(
     print(
         f"Order ID   : {order['order_id']}"
     )
-    print(
-        f"Payment ID : {payment_id or '-'}"
-    )
+
+    if payment_id:
+        print(
+            f"Payment ID : {payment_id}"
+        )
+
     print(
         f"Customer   : {order['customer']}"
     )
@@ -181,7 +185,6 @@ def mark_paid(
     )
 
     return license_path
-
 
 def list_orders() -> None:
     """
@@ -316,9 +319,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     create_parser.add_argument(
-        "--order-id",
-        required=True,
-        help="Unique order ID.",
+    "--order-id",
+    default=None,
+    help=(
+        "Optional order ID. "
+        "Generated automatically when omitted."
+        ),
     )
 
     create_parser.add_argument(
@@ -405,12 +411,12 @@ def main() -> int:
     if args.command == "create":
         try:
             output = create_order(
-                order_id=args.order_id,
-                customer=args.customer,
-                customer_email=args.email,
-                amount=args.amount,
-                currency=args.currency,
-            )
+            order_id=args.order_id,
+            customer=args.customer,
+            customer_email=args.email,
+            amount=args.amount,
+            currency=args.currency,
+        )
         except FileExistsError as exc:
             print(
                 f"Error: {exc}",

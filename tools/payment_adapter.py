@@ -17,7 +17,7 @@ def find_order_by_payment_id(
     """
     Find an order that already uses the given payment ID.
 
-    Returns the order dictionary when found, otherwise None.
+    Returns the matching order, otherwise None.
     """
     order_manager.ensure_orders_directory()
 
@@ -49,8 +49,7 @@ def get_existing_license_path(
         )
 
     license_path = (
-        Path("licenses")
-        / "active"
+        order_manager.ACTIVE_LICENSE_DIR
         / f"{license_id}.json"
     )
 
@@ -73,9 +72,9 @@ def process_payment(
     """
     Process a payment event.
 
-    This function is idempotent:
-    receiving the same successful payment more than once
-    does not issue another license.
+    The operation is idempotent:
+    repeating the same successful payment does not
+    issue another license.
     """
 
     if status != "paid":
@@ -92,10 +91,9 @@ def process_payment(
         order_id
     )
 
-    # -------------------------------------------------
-    # Idempotent retry:
-    # same paid order + same payment ID
-    # -------------------------------------------------
+    # --------------------------------
+    # Idempotent retry
+    # --------------------------------
     if order["status"] == "paid":
         stored_payment_id = order.get(
             "payment_id"
@@ -111,9 +109,9 @@ def process_payment(
             f"payment ID: {order_id}"
         )
 
-    # -------------------------------------------------
-    # Prevent payment ID reuse across orders
-    # -------------------------------------------------
+    # --------------------------------
+    # Prevent payment ID reuse
+    # --------------------------------
     existing_order = find_order_by_payment_id(
         payment_id
     )
@@ -129,24 +127,36 @@ def process_payment(
                 f"{existing_order['order_id']}"
             )
 
+    # --------------------------------
+    # Validate order state
+    # --------------------------------
     if order["status"] != "pending":
         raise PaymentError(
             "Order cannot be paid from status: "
             f"{order['status']}"
         )
 
+    # --------------------------------
+    # Validate amount
+    # --------------------------------
     if amount != order["amount"]:
         raise PaymentError(
             "Payment amount does not match "
             "order amount"
         )
 
+    # --------------------------------
+    # Validate currency
+    # --------------------------------
     if currency != order["currency"]:
         raise PaymentError(
             "Payment currency does not match "
             "order currency"
         )
 
+    # --------------------------------
+    # Mark order paid + issue license
+    # --------------------------------
     license_path = order_manager.mark_paid(
         order_id=order_id,
         payment_id=payment_id,

@@ -91,6 +91,11 @@ def issue_license(
         / f"{license_id}.json"
     )
 
+    if output.exists():
+        raise FileExistsError(
+        f"License already exists: {license_id}"
+    )
+
     output.write_text(
         json.dumps(
             data,

@@ -392,3 +392,69 @@ def test_list_orders(
         "ORD-TEST-007 | pending | User Two"
         in captured.out
     )
+
+def test_create_order_generates_order_id(
+    tmp_path,
+    monkeypatch,
+):
+    orders_dir, _, _ = (
+        prepare_test_environment(
+            tmp_path,
+            monkeypatch,
+        )
+    )
+
+    output = order_manager.create_order(
+        customer="Test User",
+        customer_email="test@example.com",
+        amount=99000,
+    )
+
+    assert output.exists()
+    assert output.parent == orders_dir
+
+    order = json.loads(
+        output.read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert order["order_id"].startswith(
+        "ORD-"
+    )
+
+def test_mark_paid_derives_license_id_from_order_id(
+    tmp_path,
+    monkeypatch,
+):
+    prepare_test_environment(
+        tmp_path,
+        monkeypatch,
+    )
+
+    order_manager.create_order(
+        order_id="ORD-TEST-100",
+        customer="Test User",
+        customer_email="test@example.com",
+        amount=99000,
+    )
+
+    license_path = order_manager.mark_paid(
+        "ORD-TEST-100",
+        payment_id="PAY-TEST-100",
+    )
+
+    order = order_manager.load_order(
+        "ORD-TEST-100"
+    )
+
+    assert license_path.exists()
+
+    assert order["license_id"] == (
+        "FOP-TEST-100"
+    )
+
+    assert (
+        license_path.name
+        == "FOP-TEST-100.json"
+    )
