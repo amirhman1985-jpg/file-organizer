@@ -33,8 +33,6 @@ test_recursive/
 test_recursive_new/
 
 # Packaging
-build/
-dist/
 *.egg-info/
 
 # PyInstaller
@@ -44,18 +42,21 @@ dist/
 Thumbs.db
 .DS_Store
 
-build/
+build/*
+!build/version_info.txt
+!build/version_info_free.txt
+
 dist/
+release/
+deliveries/
+orders/
+licenses/
 *.spec
 
 keys/
 license-*.json
 license_private.key
 
-release/
 release_test/
 
-orders/
-licenses/
-deliveries/
 
