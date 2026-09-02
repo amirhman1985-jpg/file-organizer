@@ -1094,3 +1094,146 @@ def test_woocommerce_webhook_retries_failed_delivery_without_new_license(
     assert count_license_files(
         tmp_path
     ) == 1
+
+def test_woocommerce_webhook_retries_only_woo_sync_after_api_failure(
+    tmp_path,
+    monkeypatch,
+):
+    prepare_test_environment(
+        tmp_path,
+        monkeypatch,
+    )
+
+    payload = valid_pro_payload(
+        order_id=12350,
+        transaction_id="PAY-WC-SYNC-RETRY",
+    )
+
+    sync_calls = []
+
+    original_update = (
+        FakeWooCommerceClient.update_order_metadata
+    )
+
+    async def failing_then_successful_update(
+        self,
+        order_id,
+        metadata,
+    ):
+        sync_calls.append(
+            {
+                "order_id": order_id,
+                "metadata": metadata,
+            }
+        )
+
+        if len(sync_calls) == 1:
+            raise RuntimeError(
+                "Simulated WooCommerce sync failure"
+            )
+
+        return await original_update(
+            self,
+            order_id,
+            metadata,
+        )
+
+    monkeypatch.setattr(
+        FakeWooCommerceClient,
+        "update_order_metadata",
+        failing_then_successful_update,
+    )
+
+    # --------------------------------
+    # First webhook:
+    # License + Delivery succeed,
+    # but WooCommerce sync fails.
+    # --------------------------------
+    first_response = post_webhook(
+        payload
+    )
+
+    assert first_response.status_code == 500
+
+    orders = list(
+        (
+            tmp_path / "orders"
+        ).glob("*.json")
+    )
+
+    assert len(orders) == 1
+
+    first_order = json.loads(
+        orders[0].read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert first_order["status"] == "paid"
+    assert first_order["delivery_status"] == "completed"
+
+    first_license_id = (
+        first_order["license_id"]
+    )
+
+    delivery_files = list(
+        (
+            tmp_path / "deliveries"
+        ).glob("*.zip")
+    )
+
+    assert len(delivery_files) == 1
+
+    license_files = list(
+        (
+            tmp_path
+            / "licenses"
+            / "active"
+        ).glob("*.json")
+    )
+
+    assert len(license_files) == 1
+
+    # --------------------------------
+    # Second webhook:
+    # Must retry WooCommerce sync only.
+    # --------------------------------
+    second_response = post_webhook(
+        payload
+    )
+
+    assert second_response.status_code == 200
+
+    second_data = (
+        second_response.json()
+    )
+
+    assert second_data["ok"] is True
+
+    assert (
+        second_data["license_id"]
+        == first_license_id
+    )
+
+    # Exactly two WooCommerce sync attempts.
+    assert len(sync_calls) == 2
+
+    # No second delivery package.
+    delivery_files_after = list(
+        (
+            tmp_path / "deliveries"
+        ).glob("*.zip")
+    )
+
+    assert len(delivery_files_after) == 1
+
+    # No second license.
+    license_files_after = list(
+        (
+            tmp_path
+            / "licenses"
+            / "active"
+        ).glob("*.json")
+    )
+
+    assert len(license_files_after) == 1

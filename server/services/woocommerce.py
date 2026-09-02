@@ -26,7 +26,6 @@ def contains_pro_product(
     Return True when the WooCommerce order
     contains the configured File Organizer Pro product.
     """
-
     line_items = payload.get(
         "line_items",
         [],
@@ -70,7 +69,6 @@ def find_order_by_external_id(
     """
     Find a local order linked to a WooCommerce order ID.
     """
-
     order_manager.ensure_orders_directory()
 
     external_order_id = str(
@@ -83,7 +81,7 @@ def find_order_by_external_id(
         try:
             data = json.loads(
                 path.read_text(
-                    encoding="utf-8"
+                    encoding="utf-8",
                 )
             )
         except (
@@ -118,7 +116,7 @@ def extract_order_data(
     str,
 ]:
     """
-    Extract and validate basic WooCommerce order data.
+    Extract and validate the basic WooCommerce order data.
 
     Returns:
         customer,
@@ -129,7 +127,6 @@ def extract_order_data(
         external_order_id,
         status
     """
-
     if "id" not in payload:
         raise ValueError(
             "WooCommerce payload is missing order ID."
@@ -270,7 +267,6 @@ def get_existing_license_path(
     """
     Return the active license file belonging to a paid order.
     """
-
     license_id = order.get(
         "license_id"
     )
@@ -294,17 +290,27 @@ def get_existing_license_path(
     return license_path
 
 
+def get_woo_sync_status(
+    order: dict[str, Any],
+) -> str:
+    """
+    Return the persisted WooCommerce synchronization status.
+    """
+    return str(
+        order.get(
+            "woo_sync_status",
+            "pending",
+        )
+    ).strip().lower()
+
+
 def persist_order(
     order: dict[str, Any],
 ) -> None:
     """
-    Persist the complete order dictionary exactly as-is.
-
-    This intentionally bypasses order_manager.save_order()
-    so that WooCommerce/delivery integration fields are not
-    lost when the order manager normalizes its own schema.
+    Persist the complete order dictionary without filtering
+    integration or delivery fields.
     """
-
     order_id = str(
         order["order_id"]
     )
@@ -328,6 +334,53 @@ def persist_order(
     )
 
 
+def persist_woo_sync_state(
+    order_id: str,
+    *,
+    status: str,
+    error: str | None = None,
+) -> None:
+    """
+    Persist WooCommerce synchronization state
+    without changing the rest of the order.
+    """
+    path = order_manager.order_path(
+        order_id
+    )
+
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Order file does not exist: {path}"
+        )
+
+    try:
+        order = json.loads(
+            path.read_text(
+                encoding="utf-8",
+            )
+        )
+    except (
+        OSError,
+        json.JSONDecodeError,
+    ) as exc:
+        raise RuntimeError(
+            f"Could not read order file: {path}"
+        ) from exc
+
+    if not isinstance(
+        order,
+        dict,
+    ):
+        raise RuntimeError(
+            f"Order file does not contain an object: {path}"
+        )
+
+    order["woo_sync_status"] = status
+    order["woo_sync_error"] = error
+
+    persist_order(order)
+
+
 def complete_delivery(
     order: dict[str, Any],
     license_path: Path,
@@ -336,11 +389,7 @@ def complete_delivery(
     """
     Create the customer-specific package and secure
     download token for a paid order.
-
-    This function updates the in-memory order only.
-    Persistence is performed by process_woocommerce_order().
     """
-
     pro_zip_path = Path(
         settings.delivery_pro_zip_path
     )
@@ -357,8 +406,7 @@ def complete_delivery(
     )
 
     downloads_dir = (
-        delivery_dir
-        / ".tokens"
+        delivery_dir / ".tokens"
     )
 
     download_token = create_download_token(
@@ -395,6 +443,10 @@ def complete_delivery(
     )
 
     order["delivery_error"] = None
+
+    order_manager.save_order(
+        order
+    )
 
     return {
         "delivery_package": str(
@@ -433,28 +485,38 @@ def process_woocommerce_order(
             ↓
         Create secure download token
 
-    For a paid order whose delivery previously failed,
-    the existing license is reused and only delivery is retried.
-    """
+    Existing paid orders are handled idempotently:
 
+        License exists + Delivery failed
+            → retry Delivery only
+
+        License exists + Delivery completed
+            → do not repeat License or Delivery
+
+        License exists + Delivery completed
+        + Woo Sync failed
+            → route layer retries Woo Sync only
+    """
     settings = load_settings()
 
-    # ---------------------------------------------------------
+    # --------------------------------
     # Required configuration
-    # ---------------------------------------------------------
+    # --------------------------------
     if not settings.woocommerce_pro_product_id:
         raise ValueError(
-            "WOOCOMMERCE_PRO_PRODUCT_ID is not configured."
+            "WOOCOMMERCE_PRO_PRODUCT_ID "
+            "is not configured."
         )
 
     if not settings.woocommerce_pro_price_irr:
         raise ValueError(
-            "WOOCOMMERCE_PRO_PRICE_IRR is not configured."
+            "WOOCOMMERCE_PRO_PRICE_IRR "
+            "is not configured."
         )
 
-    # ---------------------------------------------------------
-    # Extract basic WooCommerce order data
-    # ---------------------------------------------------------
+    # --------------------------------
+    # Extract WooCommerce order data
+    # --------------------------------
     (
         customer,
         customer_email,
@@ -467,9 +529,9 @@ def process_woocommerce_order(
         payload
     )
 
-    # ---------------------------------------------------------
+    # --------------------------------
     # Ignore unpaid orders
-    # ---------------------------------------------------------
+    # --------------------------------
     if status not in PAID_STATUSES:
         return {
             "processed": False,
@@ -481,9 +543,9 @@ def process_woocommerce_order(
             ),
         }
 
-    # ---------------------------------------------------------
-    # Verify File Organizer Pro product
-    # ---------------------------------------------------------
+    # --------------------------------
+    # Verify File Organizer Pro
+    # --------------------------------
     if not contains_pro_product(
         payload,
         settings.woocommerce_pro_product_id,
@@ -491,42 +553,48 @@ def process_woocommerce_order(
         return {
             "processed": False,
             "reason": (
-                "Order does not contain File Organizer Pro."
+                "Order does not contain "
+                "File Organizer Pro."
             ),
             "external_order_id": (
                 external_order_id
             ),
         }
 
-    # ---------------------------------------------------------
+    # --------------------------------
     # Verify currency
-    # ---------------------------------------------------------
+    # --------------------------------
     if currency != "IRR":
         raise ValueError(
-            "WooCommerce order currency must be IRR."
+            "WooCommerce order currency "
+            "must be IRR."
         )
 
-    # ---------------------------------------------------------
+    # --------------------------------
     # Verify price
-    # ---------------------------------------------------------
-    if amount != settings.woocommerce_pro_price_irr:
+    # --------------------------------
+    if (
+        amount
+        != settings.woocommerce_pro_price_irr
+    ):
         raise ValueError(
             "WooCommerce order amount does not "
             "match the configured Pro price."
         )
 
-    # ---------------------------------------------------------
-    # Find an existing local order
-    # ---------------------------------------------------------
+    # --------------------------------
+    # Check whether the WooCommerce order
+    # already exists locally.
+    # --------------------------------
     existing_order = find_order_by_external_id(
         int(external_order_id)
     )
 
     if existing_order is not None:
 
-        # =====================================================
-        # Existing order is already paid
-        # =====================================================
+        # --------------------------------
+        # Already paid
+        # --------------------------------
         if existing_order.get(
             "status"
         ) == "paid":
@@ -537,14 +605,24 @@ def process_woocommerce_order(
                 )
             )
 
-            # -------------------------------------------------
-            # Already fully delivered.
-            # This is an idempotent duplicate webhook.
-            # -------------------------------------------------
+            # --------------------------------
+            # Everything already delivered.
+            #
+            # Do NOT issue a second license.
+            # Do NOT create a second package.
+            #
+            # WooCommerce sync is handled by
+            # the route layer.
+            # --------------------------------
             if delivery_status == "completed":
-
                 existing_license_path = (
                     get_existing_license_path(
+                        existing_order
+                    )
+                )
+
+                woo_sync_status = (
+                    get_woo_sync_status(
                         existing_order
                     )
                 )
@@ -553,6 +631,14 @@ def process_woocommerce_order(
                     "processed": False,
                     "already_paid": True,
                     "delivery_completed": True,
+                    "woo_sync_required": (
+                        woo_sync_status
+                        != "completed"
+                    ),
+                    "retry_woo_sync": (
+                        woo_sync_status
+                        != "completed"
+                    ),
                     "order_id": existing_order[
                         "order_id"
                     ],
@@ -581,6 +667,11 @@ def process_woocommerce_order(
                             ]
                         )
                     ),
+                    "delivery_status": (
+                        existing_order.get(
+                            "delivery_status"
+                        )
+                    ),
                     "delivery_package": (
                         existing_order.get(
                             "delivery_package"
@@ -596,14 +687,22 @@ def process_woocommerce_order(
                             "download_url"
                         )
                     ),
+                    "woo_sync_status": (
+                        woo_sync_status
+                    ),
+                    "woo_sync_error": (
+                        existing_order.get(
+                            "woo_sync_error"
+                        )
+                    ),
                 }
 
-            # -------------------------------------------------
-            # Paid but delivery is not completed.
+            # --------------------------------
+            # Paid but delivery not completed.
             #
-            # Reuse the existing license.
+            # Reuse the same license.
             # Retry delivery only.
-            # -------------------------------------------------
+            # --------------------------------
             license_path = (
                 get_existing_license_path(
                     existing_order
@@ -618,10 +717,9 @@ def process_woocommerce_order(
                 "delivery_error"
             ] = None
 
-            # Do NOT persist here.
-            #
-            # This is deliberate. We first execute delivery,
-            # then persist the final state in one place.
+            order_manager.save_order(
+                existing_order
+            )
 
             try:
                 delivery = complete_delivery(
@@ -629,13 +727,11 @@ def process_woocommerce_order(
                     license_path=license_path,
                     settings=settings,
                 )
-
             except (
                 OSError,
                 FileNotFoundError,
                 RuntimeError,
             ) as exc:
-
                 existing_order[
                     "delivery_status"
                 ] = "failed"
@@ -650,12 +746,14 @@ def process_woocommerce_order(
 
                 raise
 
-            # -------------------------------------------------
-            # Delivery succeeded.
-            #
-            # Persist the exact in-memory order so custom
-            # delivery fields cannot be lost.
-            # -------------------------------------------------
+            existing_order[
+                "woo_sync_status"
+            ] = "pending"
+
+            existing_order[
+                "woo_sync_error"
+            ] = None
+
             persist_order(
                 existing_order
             )
@@ -682,33 +780,31 @@ def process_woocommerce_order(
                 "license_path": str(
                     license_path
                 ),
-                "order_path": str(
-                    order_manager.order_path(
-                        existing_order[
-                            "order_id"
-                        ]
-                    )
-                ),
                 "delivery_status": (
                     existing_order.get(
                         "delivery_status"
                     )
                 ),
+                "woo_sync_status": (
+                    existing_order.get(
+                        "woo_sync_status"
+                    )
+                ),
                 **delivery,
             }
 
-        # -----------------------------------------------------
-        # Existing order is linked but not paid.
-        # -----------------------------------------------------
+        # --------------------------------
+        # Existing order in an unexpected
+        # non-paid state.
+        # --------------------------------
         raise ValueError(
             "WooCommerce order is already linked "
             "to a local order in an unexpected state."
         )
 
-    # =========================================================
-    # Create new local order
-    # =========================================================
-
+    # --------------------------------
+    # Create local order
+    # --------------------------------
     local_order_id = generate_order_id()
 
     order_path = order_manager.create_order(
@@ -723,9 +819,6 @@ def process_woocommerce_order(
         local_order_id
     )
 
-    # ---------------------------------------------------------
-    # Add WooCommerce integration fields
-    # ---------------------------------------------------------
     local_order["source"] = (
         "woocommerce"
     )
@@ -752,25 +845,29 @@ def process_woocommerce_order(
     local_order["delivered_at"] = None
     local_order["delivery_error"] = None
 
+    local_order["woo_sync_status"] = (
+        "pending"
+    )
+
+    local_order["woo_sync_error"] = None
+
     order_manager.save_order(
         local_order
     )
 
-    # =========================================================
+    # --------------------------------
     # Issue exactly one license
-    # =========================================================
+    # --------------------------------
     try:
         license_path = order_manager.mark_paid(
             order_id=local_order_id,
             payment_id=payment_id,
         )
-
     except (
         OSError,
         FileNotFoundError,
         RuntimeError,
     ) as exc:
-
         local_order[
             "delivery_status"
         ] = "failed"
@@ -787,31 +884,44 @@ def process_woocommerce_order(
 
         raise
 
-    # ---------------------------------------------------------
+    # --------------------------------
     # Reload after license issuance.
-    # mark_paid() is responsible for writing the license/order
-    # state, so get the latest local representation.
-    # ---------------------------------------------------------
+    # --------------------------------
     local_order = order_manager.load_order(
         local_order_id
     )
 
-    # ---------------------------------------------------------
-    # Create customer delivery
-    # ---------------------------------------------------------
+    # --------------------------------
+    # Make sure Woo sync fields survived
+    # the order manager persistence layer.
+    # --------------------------------
+    local_order[
+        "woo_sync_status"
+    ] = local_order.get(
+        "woo_sync_status",
+        "pending",
+    )
+
+    local_order[
+        "woo_sync_error"
+    ] = local_order.get(
+        "woo_sync_error"
+    )
+
+    # --------------------------------
+    # Create delivery package
+    # --------------------------------
     try:
         delivery = complete_delivery(
             order=local_order,
             license_path=license_path,
             settings=settings,
         )
-
     except (
         OSError,
         FileNotFoundError,
         RuntimeError,
     ) as exc:
-
         local_order[
             "delivery_status"
         ] = "failed"
@@ -826,18 +936,24 @@ def process_woocommerce_order(
 
         raise
 
-    # ---------------------------------------------------------
-    # Delivery succeeded.
-    #
-    # Persist the exact final state.
-    # ---------------------------------------------------------
+    # --------------------------------
+    # Mark WooCommerce sync as pending.
+    # --------------------------------
+    local_order[
+        "woo_sync_status"
+    ] = "pending"
+
+    local_order[
+        "woo_sync_error"
+    ] = None
+
     persist_order(
         local_order
     )
 
-    # ---------------------------------------------------------
+    # --------------------------------
     # Reload final order state.
-    # ---------------------------------------------------------
+    # --------------------------------
     local_order = order_manager.load_order(
         local_order_id
     )
@@ -861,8 +977,21 @@ def process_woocommerce_order(
         "order_path": str(
             order_path
         ),
-        "delivery_status": local_order.get(
-            "delivery_status"
+        "delivery_status": (
+            local_order.get(
+                "delivery_status"
+            )
+        ),
+        "woo_sync_status": (
+            local_order.get(
+                "woo_sync_status",
+                "pending",
+            )
+        ),
+        "woo_sync_error": (
+            local_order.get(
+                "woo_sync_error"
+            )
         ),
         **delivery,
     }
