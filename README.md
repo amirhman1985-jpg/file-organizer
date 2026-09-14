@@ -116,6 +116,10 @@ For documentation and product information:
 
 https://techyarman.ir/help.html
 
+and for support me:
+
+https://techyarman.ir/donation.html
+
 For the latest download information:
 
 https://techyarman.ir/download.html
